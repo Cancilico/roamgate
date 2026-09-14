@@ -194,8 +194,15 @@ is open in the current connection.
 ## File Explorer and Preview
 
 - Browse a cached, expandable tree, optionally including hidden files. Search
-  covers loaded files; Git badges mark changed files/directories; ignored files
+  loaded names/paths by substring or glob: `r*md`, `?.txt`, `[abc]*`, `{md,mmd}`,
+  and `**` are supported. Patterns with `/` match loaded paths; matching is
+  case-insensitive. Git badges mark changed files/directories; ignored files
   are dimmed.
+- Choose **Browse filesystem** in the toolbar to opt into read-only browsing
+  outside the workspace on the connected host. Use **Parent directory** or enter
+  an absolute directory to preview references, copy paths, or download files.
+  **Workspace only** restores the tree. This mode is off by default and resets
+  on browser refresh or checkout/connection changes.
 - Preview text with line numbers, syntax highlighting, and `Cmd/Ctrl+F` search.
   Use **Refresh preview** beside Copy to reload the current file from disk
   without reopening it; the selected Raw/Rendered mode is preserved.
@@ -205,6 +212,8 @@ is open in the current connection.
   100% controls; scroll to pan or use Ctrl/Cmd + wheel to zoom.
 - Follow Markdown file links within the Inspector: relative to the document,
   leading `/` from workspace root, and heading fragments within the destination.
+  For absolute reference files, links resolve from the file directory and
+  leading `/` resolves from the filesystem root.
   External links open a new browser tab.
 - Preview SVG, PNG/APNG, JPEG, GIF, WebP, BMP, ICO, and AVIF images with zoom and
   Fit controls, plus PDFs and workspace-local Markdown images. Unsupported

@@ -45,7 +45,7 @@ import type {
 } from "../types";
 import { connectionClientScopeKey } from "../useConnectionClient";
 import { gitDiffCode, gitDiffCodeLabel } from "../gitDiffStatus";
-import { requestFilePreview } from "./FileExplorerDialog";
+import { requestFilePreview } from "./fileExplorerResources";
 import {
   AnnotationComposerPopover,
   type AnnotationComposerDraft,

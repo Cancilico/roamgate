@@ -240,6 +240,22 @@ layout/preferences are separate from content caches. See
 [Workspace Inspector](../FEATURES.md#workspace-inspector) for controls and
 [History synchronization](./HISTORY.md) for session projection contracts.
 
+## Filesystem browsing
+
+`file.list` stays checkout-relative by default, including realpath checks for
+symlink escapes. Each filesystem listing explicitly sends `scope: "filesystem"`
+and an absolute host directory; returned entries use absolute paths and the reply
+confirms its scope. This mode is local to the open explorer and is never persisted
+as a browser-wide permission or shared with another checkout/connection. Directory
+responses from a retired view cannot replace its successor. Search filters only
+loaded entries and never recursively scans the filesystem.
+
+Absolute preview resources use `scope=filesystem` on download URLs. Relative
+Markdown links and images resolve beside their absolute source document. Upload
+and delete remain checkout-scoped; filesystem mode exposes browsing, previews,
+copying paths, and downloads. Explorer resource caches stay separate from the lazy
+UI so opening a terminal does not load the file-search matcher or browser controls.
+
 ## SSH transport
 
 Each SSH runtime supervises one OpenSSH process forwarding both sockets into a

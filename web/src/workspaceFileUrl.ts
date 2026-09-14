@@ -23,6 +23,8 @@ export function workspaceFileUrl(
   );
   url.searchParams.set("workspace_id", workspaceId);
   url.searchParams.set("path", path);
+  if (/^(?:\/|[a-z]:[\\/])/i.test(path))
+    url.searchParams.set("scope", "filesystem");
   if (options.inline) url.searchParams.set("inline", "1");
   if (options.revision !== undefined) {
     url.searchParams.set("resource_revision", String(options.revision));
@@ -60,9 +62,11 @@ export function resolveWorkspaceMarkdownPath(
   }
   if (!resourcePath) return null;
 
+  const document = markdownPath.replace(/\\/g, "/");
+  const prefix = document.match(/^(?:[a-z]:)?\//i)?.[0] ?? "";
   const parts = resourcePath.startsWith("/")
     ? []
-    : markdownPath.replace(/\\/g, "/").split("/").slice(0, -1);
+    : document.slice(prefix.length).split("/").slice(0, -1);
   for (const part of resourcePath.split("/")) {
     if (!part || part === ".") continue;
     if (part.includes("\0")) return null;
@@ -73,7 +77,7 @@ export function resolveWorkspaceMarkdownPath(
     }
     parts.push(part);
   }
-  return parts.length > 0 ? parts.join("/") : null;
+  return parts.length > 0 ? `${prefix}${parts.join("/")}` : null;
 }
 
 export function resolveWorkspaceMarkdownImageUrl(

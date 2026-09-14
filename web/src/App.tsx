@@ -62,7 +62,7 @@ import {
   clearFileExplorerResourceCache,
   prefetchFileExplorerWorkspace,
   requestFilePreview,
-} from "./components/FileExplorerDialog";
+} from "./components/fileExplorerResources";
 import { type ActiveFilePreviewSelection } from "./components/FilePreviewContent";
 import { GlobalTooltip } from "./components/GlobalTooltip";
 import { MobileTabSheet } from "./components/MobileTabSheet";
