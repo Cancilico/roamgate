@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { EditorView as CodeMirrorEditorView } from "@codemirror/view";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, RefreshCw } from "lucide-react";
 import { fileReviewLineLabel, MAX_QUOTE_LENGTH } from "../annotations";
 import {
   FileAnnotationDrag,
@@ -179,6 +179,7 @@ export function FilePreviewContent({
   backAction,
   onOpenChanges,
   onOpenFile,
+  onRefresh,
   onCreateAnnotation,
   onReanchorAnnotations,
 }: {
@@ -193,6 +194,7 @@ export function FilePreviewContent({
   annotations?: readonly ReviewAnnotation[];
   onOpenChanges?: () => void;
   onOpenFile?: (path: string, fragment?: string) => void;
+  onRefresh?: () => void;
   onCreateAnnotation?: (annotation: NewReviewAnnotation) => void;
   onReanchorAnnotations?: (path: string, text: string) => void;
 }) {
@@ -286,6 +288,9 @@ export function FilePreviewContent({
 
   useEffect(() => {
     setPreviewMode("rendered");
+  }, [entry?.path]);
+
+  useEffect(() => {
     setPendingAnnotation(null);
     setMarkdownSelection(null);
   }, [previewPath]);
@@ -434,6 +439,22 @@ export function FilePreviewContent({
             {entry?.name ?? "Preview"}
           </div>
           <div className="file-preview-head-actions">
+            {!showingChanges && entry && onRefresh ? (
+              <button
+                type="button"
+                className="file-preview-refresh"
+                title="Refresh preview"
+                aria-label="Refresh preview"
+                disabled={loading}
+                onClick={onRefresh}
+              >
+                <RefreshCw
+                  size={13}
+                  className={loading ? "is-spinning" : undefined}
+                  aria-hidden="true"
+                />
+              </button>
+            ) : null}
             {!showingChanges && hasPreviewText && !preview?.truncated ? (
               <button
                 type="button"

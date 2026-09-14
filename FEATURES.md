@@ -197,6 +197,8 @@ is open in the current connection.
   covers loaded files; Git badges mark changed files/directories; ignored files
   are dimmed.
 - Preview text with line numbers, syntax highlighting, and `Cmd/Ctrl+F` search.
+  Use **Refresh preview** beside Copy to reload the current file from disk
+  without reopening it; the selected Raw/Rendered mode is preserved.
   Markdown and `.mmd`/`.mermaid` files offer Raw/Rendered views, including
   Mermaid diagrams in Markdown fences.
 - Follow Markdown file links within the Inspector: relative to the document,

@@ -115,6 +115,25 @@ function tree(path: string) {
   if (!row) throw new Error(`Missing tree row: ${path}`);
   flushSync(() => row.click());
 }
+function previewButton(label: string) {
+  const button = [
+    ...document.querySelectorAll<HTMLButtonElement>(
+      ".file-preview-head-actions button",
+    ),
+  ].find(
+    (element) =>
+      element.getAttribute("aria-label") === label ||
+      element.textContent === label,
+  );
+  if (!button) throw new Error(`Missing preview button: ${label}`);
+  return button;
+}
+function refreshPreview() {
+  const button = previewButton("Refresh preview");
+  flushSync(() => button.click());
+  check(button.disabled, "refresh remains enabled during its request");
+}
+
 function link(label: string) {
   const anchor = [
     ...document.querySelectorAll<HTMLAnchorElement>(".file-preview-markdown a"),
@@ -139,6 +158,8 @@ async function showA(path = "A.md") {
       ),
     "A rendered",
   );
+  // A cached render can precede completion of its background read.
+  await settle();
 }
 function commandMenuEvent() {
   // Match the platform preset: Meta+K on macOS, Ctrl+Alt+K elsewhere.
@@ -315,6 +336,13 @@ async function run() {
       `${label} fragment lost on canonical response`,
     );
     scrolled.length = 0;
+    refreshPreview();
+    request("alias.md").resolve(response("alias.md"));
+    await until(
+      () => scrolled.includes("Section"),
+      "refresh preserves heading fragment",
+    );
+    scrolled.length = 0;
     tree("alias.md");
     request("alias.md").resolve(response("alias.md"));
     await settle();
@@ -324,6 +352,76 @@ async function run() {
     );
   }
   Element.prototype.scrollIntoView = originalScroll;
+
+  // Header refresh bypasses cached content, preserves source mode, and can retry.
+  await showA();
+  refreshPreview();
+  request("A.md").resolve({ ...response("A.md"), text: "# Updated from disk" });
+  await until(
+    () =>
+      document.querySelector(".file-preview-markdown h1")?.textContent ===
+      "Updated from disk",
+    "refreshed content",
+  );
+  check(selected() === "A.md", "refresh changed the selected file");
+  flushSync(() => previewButton("Raw").click());
+  await until(() => document.querySelector(".cm-content"), "raw content");
+  refreshPreview();
+  request("A.md").resolve({ ...response("A.md"), text: "# Updated source" });
+  await until(
+    () =>
+      document
+        .querySelector(".cm-content")
+        ?.textContent?.includes("Updated source"),
+    "refreshed raw content",
+  );
+  check(!!previewButton("Rendered"), "refresh lost raw mode");
+  refreshPreview();
+  request("A.md").reject(new Error("file disappeared"));
+  await until(
+    () =>
+      document
+        .querySelector(".file-preview .is-error")
+        ?.textContent?.includes("file disappeared"),
+    "refresh error",
+  );
+  check(
+    !previewButton("Refresh preview").disabled,
+    "failed refresh cannot retry",
+  );
+  refreshPreview();
+  request("A.md").resolve(response("A.md"));
+  await until(() => document.querySelector(".cm-content"), "retry content");
+  flushSync(() => previewButton("Rendered").click());
+  await until(
+    () => document.querySelector(".file-preview-markdown a"),
+    "rendered after retry",
+  );
+
+  for (const olderFirst of [true, false]) {
+    await showA();
+    refreshPreview();
+    const oldRefresh = request("A.md");
+    tree("C.md");
+    const current = request("C.md");
+    if (olderFirst) {
+      oldRefresh.resolve(response("A.md"));
+      await settle();
+      check(selected() === "C.md", "refresh replaced a pending tree selection");
+      current.resolve(response("C.md"));
+    } else {
+      current.resolve(response("C.md"));
+      await settle();
+      oldRefresh.resolve(response("A.md"));
+    }
+    await settle();
+    check(selected() === "C.md", "late refresh replaced the selected file");
+    check(
+      document.querySelector(".file-preview-markdown h1")?.textContent ===
+        "C.md",
+      "late refresh rendered over the selected file",
+    );
+  }
 
   // Stale failures cannot remove a newer result; newest failures remain visible.
   await showA();

@@ -216,6 +216,7 @@ export function WorkspaceInspectorHost({
   onDiffSelectionChange,
   onOpenDiffFile,
   onOpenDocument,
+  onRefreshFile,
   onViewChange,
   onDockChange,
   onExpandedChange,
@@ -236,6 +237,7 @@ export function WorkspaceInspectorHost({
   >[0]["onPreviewChange"];
   onDiffSelectionChange: DiffViewerPanelProps["onSelectionChange"];
   onOpenDocument: (path: string, fragment?: string) => void;
+  onRefreshFile: () => void;
   onOpenDiffFile: (entry: ActiveDiffSelection["entry"]) => void;
   onViewChange: (view: InspectorView) => void;
   onDockChange: (dock: InspectorDock) => void;
@@ -786,6 +788,7 @@ export function WorkspaceInspectorHost({
                 error={fileSelection.error}
                 fragment={fileSelection.fragment}
                 onOpenFile={onOpenDocument}
+                onRefresh={onRefreshFile}
                 backAction={
                   compact && drillInByView.files && fileSelection.entry
                     ? {

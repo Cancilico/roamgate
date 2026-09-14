@@ -5385,6 +5385,7 @@ textarea:focus {
   color: var(--text-strong);
 }
 .file-preview-mode-toggle,
+.file-preview-refresh,
 .file-preview-copy,
 .file-preview-changes-toggle {
   height: 24px;
@@ -5395,6 +5396,14 @@ textarea:focus {
   font-size: 11px;
   font-weight: 700;
 }
+.file-preview-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  padding: 0;
+}
+.file-preview-refresh:hover:not(:disabled),
 .file-preview-copy:hover,
 .file-preview-changes-toggle:hover,
 .file-preview-changes-toggle[aria-pressed="true"] {

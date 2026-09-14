@@ -3036,6 +3036,14 @@ export default function App() {
                         selection,
                       )
                     }
+                    onRefreshFile={() => {
+                      if (inspectorWorkspace && activeFilePreview.entry)
+                        loadInspectorFilePreview(
+                          inspectorWorkspace.workspace_id,
+                          activeFilePreview.entry,
+                          activeFilePreview.fragment,
+                        );
+                    }}
                     onOpenDiffFile={openDiffFileInExplorer}
                     onOpenDocument={(path, fragment) => {
                       if (inspectorWorkspace)
