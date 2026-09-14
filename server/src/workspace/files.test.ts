@@ -142,6 +142,21 @@ describe("workspace file handlers", () => {
       );
       expect(await response.text()).toBe("hello");
 
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+      await writeFile(join(root, "vector.svg"), svg);
+      const svgResponse = await handlers.downloadWorkspaceFile({
+        workspace_id: "w1",
+        path: "vector.svg",
+        inline: true,
+      });
+      expect(svgResponse.headers.get("content-type")).toBe("image/svg+xml");
+      expect(svgResponse.headers.get("content-security-policy")).toBe(
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+      );
+      expect(svgResponse.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(await svgResponse.text()).toBe(svg);
+
       const inlineResponse = await handlers.downloadWorkspaceFile({
         workspace_id: "w1",
         path: "guide.pdf",

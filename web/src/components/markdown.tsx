@@ -1,7 +1,13 @@
 import { resolveWorkspaceMarkdownLink } from "../workspaceFileUrl";
-import { useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { marked } from "marked";
-import { loadMermaidModule, renderMermaidDiagram } from "../mermaidRender";
+import { lazyWithReload } from "../lazyWithReload";
+const MermaidDiagram = lazyWithReload("mermaid-preview", () =>
+  import("./MermaidDiagram").then((module) => ({
+    default: module.MermaidDiagram,
+  })),
+);
 
 const MARKDOWN_ALLOWED_TAGS = new Set([
   "a",
@@ -307,47 +313,30 @@ export function MarkdownPreview({
     }
   };
 
+  const [diagrams, setDiagrams] = useState<
+    Array<{ target: HTMLElement; code: string }>
+  >([]);
   useEffect(() => {
     const root = articleRef.current;
     if (!root) return;
-    const blocks = Array.from(
-      root.querySelectorAll("pre > code.language-mermaid"),
-    );
-    if (blocks.length === 0) return;
-    let cancelled = false;
-    loadMermaidModule()
-      .then((mermaid) => {
-        if (cancelled) return;
-        for (const codeElement of blocks) {
-          const pre = codeElement.parentElement;
-          if (!pre || pre.tagName !== "PRE" || !pre.isConnected) continue;
-          const code = codeElement.textContent ?? "";
-          if (!code.trim()) continue;
-          const rendered = renderMermaidDiagram(mermaid, code);
-          if (rendered.ok) {
-            const figure = document.createElement("div");
-            figure.className = "mermaid-diagram";
-            figure.setAttribute("role", "img");
-            figure.setAttribute("aria-label", "Mermaid diagram");
-            const svgDocument = new DOMParser().parseFromString(
-              rendered.svg,
-              "image/svg+xml",
-            );
-            const svg = svgDocument.documentElement;
-            if (svg.tagName.toLowerCase() !== "svg") continue;
-            figure.replaceChildren(document.importNode(svg, true));
-            pre.replaceWith(figure);
-          } else {
-            const note = document.createElement("div");
-            note.className = "mermaid-diagram-error";
-            note.textContent = `Mermaid render failed: ${rendered.error}`;
-            pre.before(note);
-          }
-        }
-      })
-      .catch(() => undefined);
+    const diagrams: Array<{ target: HTMLElement; code: string }> = [];
+    const originals: Array<{ target: HTMLElement; pre: HTMLElement }> = [];
+    for (const code of root.querySelectorAll("pre > code.language-mermaid")) {
+      const pre = code.parentElement;
+      if (!pre) continue;
+      const target = document.createElement("div");
+      target.className = "markdown-mermaid-slot";
+      pre.replaceWith(target);
+      originals.push({ target, pre });
+      diagrams.push({ target, code: code.textContent ?? "" });
+    }
+    setDiagrams(diagrams);
     return () => {
-      cancelled = true;
+      // Restore the sanitized code blocks for StrictMode's effect replay.
+      // On navigation the article's new HTML already owns different nodes.
+      for (const { target, pre } of originals) {
+        if (root.contains(target)) target.replaceWith(pre);
+      }
     };
   }, [html]);
 
@@ -369,26 +358,43 @@ export function MarkdownPreview({
   }, [onSelectionChange]);
 
   return (
-    <article
-      ref={articleRef}
-      onClick={openLink}
-      onAuxClick={(event) => {
-        if (event.button === 1) openLink(event);
-      }}
-      className={`file-preview-markdown ${className}`.trim()}
-      onPointerDown={() => onSelectionChange?.(null)}
-      onPointerUp={() => {
-        requestAnimationFrame(() => {
+    <>
+      <article
+        ref={articleRef}
+        onClick={openLink}
+        onAuxClick={(event) => {
+          if (event.button === 1) openLink(event);
+        }}
+        className={`file-preview-markdown ${className}`.trim()}
+        onPointerDown={() => onSelectionChange?.(null)}
+        onPointerUp={() => {
+          requestAnimationFrame(() => {
+            const root = articleRef.current;
+            onSelectionChange?.(root ? markdownSelectionTarget(root) : null);
+          });
+        }}
+        onKeyUp={() => {
           const root = articleRef.current;
           onSelectionChange?.(root ? markdownSelectionTarget(root) : null);
-        });
-      }}
-      onKeyUp={() => {
-        const root = articleRef.current;
-        onSelectionChange?.(root ? markdownSelectionTarget(root) : null);
-      }}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {diagrams.map(({ target, code }, index) =>
+        createPortal(
+          <Suspense
+            fallback={
+              <div className="file-preview-state" role="status">
+                Rendering diagram
+              </div>
+            }
+          >
+            <MermaidDiagram code={code} />
+          </Suspense>,
+          target,
+          String(index),
+        ),
+      )}
+    </>
   );
 }
 

@@ -5403,6 +5403,15 @@ textarea:focus {
   width: 24px;
   padding: 0;
 }
+.file-preview-mode-options {
+  display: inline-flex;
+  gap: 2px;
+}
+.file-preview-mode-options button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .file-preview-refresh:hover:not(:disabled),
 .file-preview-copy:hover,
 .file-preview-changes-toggle:hover,
@@ -5455,22 +5464,6 @@ textarea:focus {
   background: var(--accent-soft);
   color: var(--muted);
   font-size: 12px;
-}
-.file-preview-image-wrap {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  overflow: auto;
-  padding: 16px;
-  background: var(--terminal-bg);
-}
-.file-preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px var(--border);
 }
 .file-preview-pdf {
   flex: 1 1 auto;
@@ -5658,13 +5651,15 @@ textarea:focus {
 }
 .mermaid-diagram {
   display: flex;
-  justify-content: center;
-  overflow: auto;
-  padding: 12px 8px;
+  flex-direction: column;
+  min-width: 0;
+  margin: 12px 0;
 }
-.mermaid-diagram > svg {
-  max-width: 100%;
-  height: auto;
+.mermaid-svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
   /* Scoped replacement for the beautiful-mermaid <style> block that is
      stripped before injection; values derive from the per-diagram --bg/--fg
      (and optional --line/--muted overrides) set inline by the renderer. */
@@ -5688,6 +5683,7 @@ textarea:focus {
 }
 .mermaid-diagram.is-loading,
 .mermaid-diagram.is-empty {
+  flex-direction: row;
   justify-content: flex-start;
   align-items: center;
   gap: 8px;
@@ -5707,11 +5703,19 @@ textarea:focus {
   color: var(--danger-text);
   font-size: 12.5px;
 }
+.mermaid-diagram-error pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre;
+}
+.mermaid-diagram-error summary {
+  cursor: pointer;
+  margin-top: 8px;
+}
 .file-preview-mermaid {
   flex: 1 1 auto;
   min-height: 0;
-  align-items: flex-start;
-  padding: 24px 16px;
+  margin: 0;
 }
 .file-preview-mermaid.mermaid-diagram-error {
   display: block;

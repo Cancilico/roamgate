@@ -32,7 +32,7 @@ the root manifest. Keep runtime dependencies in their owning workspace.
 - `bun run format:check`: verify that all supported files are formatted.
 - `bun run lint`: lint all TypeScript and React code with a local content cache.
 - `bun run test`: run the full Bun suite, including integration and browser tests.
-- `bun run test:quick`: run the suite without the three Chrome-based browser test
+- `bun run test:quick`: run the suite without the Chrome-based browser test
   files for local feedback; this still includes server integration tests.
 - `bun run test:browser`: run the Chrome-based browser regressions separately.
 - `bun run typecheck`: build/embed web assets and run all TypeScript checks.

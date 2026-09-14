@@ -126,6 +126,13 @@ Input waits for attachment readiness and revalidates the attachment, session,
 and routing lease. It is never replayed into a detached or replaced terminal.
 Disconnect rejects pending endpoint requests and invalidates clipboard ownership.
 
+Mermaid file previews and Markdown fences share a lazy renderer and independent
+zoomable viewports. Source wrappers and leading metadata/comments are removed
+before diagram-type detection; source views retain the original file. Layout and
+theme remain controlled by Studio. Image previews use inert image elements;
+workspace SVG endpoints also send a sandbox CSP for direct navigation, blocking
+scripts and external resources. SVG source is never inserted into Studio's DOM.
+
 ## Browser navigation and creation
 
 On endpoint connections, `browserNavigation.ts` projects browser-local

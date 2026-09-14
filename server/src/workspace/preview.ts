@@ -24,10 +24,16 @@ export function trimIncompleteUtf8Tail(buffer: Buffer) {
 export function imageMimeForPath(path: string) {
   const ext = path.toLowerCase().split(".").pop() ?? "";
   switch (ext) {
+    case "svg":
+      return "image/svg+xml";
+    case "apng":
+      return "image/apng";
     case "png":
       return "image/png";
     case "jpg":
     case "jpeg":
+    case "jpe":
+    case "jfif":
       return "image/jpeg";
     case "gif":
       return "image/gif";

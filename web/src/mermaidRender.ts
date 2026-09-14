@@ -42,12 +42,34 @@ export function prepareMermaidSvg(svg: string, token: string): string {
   return result;
 }
 
+/** Standalone sources often include a file header before the diagram type. */
+export function normalizeMermaidSource(code: string): string {
+  let source = code.replace(/^\uFEFF/, "").trim();
+  const fenced = source.match(
+    /^(`{3,}|~{3,})mermaid[^\S\n]*\r?\n([\s\S]*?)\r?\n\1$/i,
+  );
+  if (fenced) source = fenced[2]!.trim();
+  // Layout/theme are controlled by Studio; a YAML document header is not a
+  // diagram statement. Preserve the original file for source views and Copy.
+  source = source
+    .replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "")
+    .trimStart();
+  while (source.startsWith("%%")) {
+    const header = source.startsWith("%%{")
+      ? source.match(/^%%\{[\s\S]*?\}%%(?:[^\S\n]*\r?\n|$)/)?.[0]
+      : source.match(/^%%[^\n]*(?:\n|$)/)?.[0];
+    if (!header) break;
+    source = source.slice(header.length).trimStart();
+  }
+  return source;
+}
+
 export function renderMermaidDiagram(
   mermaid: Pick<MermaidModule, "renderMermaidSVG">,
   code: string,
 ): MermaidRenderResult {
   try {
-    const svg = mermaid.renderMermaidSVG(code, {
+    const svg = mermaid.renderMermaidSVG(normalizeMermaidSource(code), {
       // Reference app theme variables so light/dark switches apply without a
       // re-render. Diagram labels are XML-escaped by the renderer.
       bg: "var(--viewer-code-bg)",

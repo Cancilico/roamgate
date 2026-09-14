@@ -268,6 +268,12 @@ export function createFileHandlers({
       headers["cache-control"] = "private, no-store";
       headers["x-content-type-options"] = "nosniff";
     }
+    if (inlineMime === "image/svg+xml") {
+      // SVGs are inert in <img>. Keep direct navigation to the same endpoint
+      // isolated too, without granting workspace content the Studio origin.
+      headers["content-security-policy"] =
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:";
+    }
     return new Response(download.body, { headers });
   }
 

@@ -199,13 +199,16 @@ is open in the current connection.
 - Preview text with line numbers, syntax highlighting, and `Cmd/Ctrl+F` search.
   Use **Refresh preview** beside Copy to reload the current file from disk
   without reopening it; the selected Raw/Rendered mode is preserved.
-  Markdown and `.mmd`/`.mermaid` files offer Raw/Rendered views, including
-  Mermaid diagrams in Markdown fences.
+  Markdown offers Raw/Rendered views with Mermaid diagrams in code fences.
+  `.mmd`/`.mermaid` files offer Diagram/Source views and accept leading comments,
+  document headers, and Mermaid fences. Diagrams have independent zoom, Fit, and
+  100% controls; scroll to pan or use Ctrl/Cmd + wheel to zoom.
 - Follow Markdown file links within the Inspector: relative to the document,
   leading `/` from workspace root, and heading fragments within the destination.
   External links open a new browser tab.
-- Preview common images, PDFs, and workspace-local Markdown images; unsupported
-  binaries are download-only.
+- Preview SVG, PNG/APNG, JPEG, GIF, WebP, BMP, ICO, and AVIF images with zoom and
+  Fit controls, plus PDFs and workspace-local Markdown images. Unsupported
+  binaries remain download-only; image decoding depends on the browser.
 - Drag uploads onto the root/directory. Download files or workspace-scoped
   `.tar.gz` directories; copy absolute paths; delete with confirmation.
   Open actions by right-click or touch long-press.
