@@ -84,6 +84,9 @@ branch/worktree, and checkout path.
   proven agent ownership.
 - Open closed worktrees before browsing. Missing/prunable worktrees offer cleanup,
   never sibling files. Removal clears only that checkout's resource state.
+- Directory targets opened from terminal links offer a New workspace action that
+  prefills the name (last directory component) and CWD, unless the directory
+  already backs an open workspace.
 
 Preview is read-only: no synthetic terminal tabs or cross-worktree merged changes.
 See [resource ownership](docs/ARCHITECTURE.md#workspace-resource-ownership).

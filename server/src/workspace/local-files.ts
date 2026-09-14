@@ -98,12 +98,24 @@ export async function readLocalFile(
   );
   if (!requestedAbsolute) assertInsideRoot(rootReal, targetReal);
   const info = await stat(targetReal);
-  if (!info.isFile()) {
-    throw new Error("only regular files can be previewed");
-  }
   const displayPath = requestedAbsolute
     ? targetReal
     : relativePreviewPath(rootReal, targetReal);
+  if (info.isDirectory()) {
+    return {
+      root: rootReal,
+      path: displayPath,
+      type: "directory",
+      size: 0,
+      mtime_ms: info.mtimeMs,
+      truncated: false,
+      text: null,
+      binary: false,
+    };
+  }
+  if (!info.isFile()) {
+    throw new Error("only regular files can be previewed");
+  }
   const previewLimit = previewLimitForPath(displayPath, info.size);
   const raw = Buffer.from(
     await Bun.file(targetReal)

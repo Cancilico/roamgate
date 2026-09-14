@@ -64,6 +64,24 @@ describe("local workspace file operations", () => {
     });
   });
 
+  test("reads directory previews instead of rejecting them", async () => {
+    await withTempDir(async (root) => {
+      await mkdir(join(root, "src", "app"), { recursive: true });
+      const relative = await readLocalFile(root, "src/app");
+      expect(relative).toMatchObject({
+        type: "directory",
+        path: "src/app",
+        text: null,
+        binary: false,
+        size: 0,
+        truncated: false,
+      });
+      const absolute = await readLocalFile(root, join(root, "src"));
+      expect(absolute.type).toBe("directory");
+      expect(absolute.path.endsWith("/src")).toBe(true);
+    });
+  });
+
   test("resolves only regular files inside the workspace", async () => {
     await withTempDir(async (root) => {
       await mkdir(join(root, "a", "b"), { recursive: true });

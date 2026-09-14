@@ -76,6 +76,23 @@ describe("remote file protocol parsers", () => {
     });
   });
 
+  test("parses directory previews without content", () => {
+    const directory = parseRemoteFilePreview(
+      `META\t${b64("/repo")}\t0\t9\t${b64("packages/app")}\tdirectory`,
+      "packages/app",
+    );
+    expect(directory).toMatchObject({
+      root: "/repo",
+      path: "packages/app",
+      type: "directory",
+      size: 0,
+      mtime_ms: 9000,
+      text: null,
+      binary: false,
+      truncated: false,
+    });
+  });
+
   test("parses resolved remote files", () => {
     expect(
       parseRemoteFileResolutions(

@@ -157,6 +157,9 @@ export interface FilePreview {
   checkout_path: string;
   root: string;
   path: string;
+  // Omitted for regular files; "directory" targets have no previewable
+  // content and always report a null text.
+  type?: "file" | "directory";
   size: number;
   mtime_ms: number;
   text: string | null;

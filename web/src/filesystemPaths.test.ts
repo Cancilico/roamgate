@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { parentFilesystemPath } from "./filesystemPaths";
+import {
+  directoryPreviewName,
+  directoryPreviewPath,
+  normalizeFilesystemPath,
+  parentFilesystemPath,
+} from "./filesystemPaths";
 import {
   absolutePath,
   isWorkspaceRelativePath,
@@ -17,6 +22,47 @@ test("filesystem parents stop at POSIX, drive, and share roots", () => {
     ["//server/share", "//server/share"],
   ])
     expect(parentFilesystemPath(path!)).toBe(parent!);
+});
+
+test("directory preview paths resolve against the preview root", () => {
+  expect(directoryPreviewPath(null)).toBe(null);
+  expect(directoryPreviewPath({ root: "/repo", path: "README.md" })).toBe(null);
+  expect(
+    directoryPreviewPath({
+      type: "directory",
+      root: "/repo",
+      path: "src/app",
+    }),
+  ).toBe("/repo/src/app");
+  expect(
+    directoryPreviewPath({ type: "directory", root: "/repo/", path: "/" }),
+  ).toBe("/");
+  expect(
+    directoryPreviewPath({
+      type: "directory",
+      root: "/repo",
+      path: "/tmp/demo/",
+    }),
+  ).toBe("/tmp/demo");
+  expect(
+    directoryPreviewPath({
+      type: "directory",
+      root: "C:\\repo",
+      path: "C:\\repo\\src",
+    }),
+  ).toBe("C:/repo/src");
+});
+
+test("directory preview names use the last path component", () => {
+  expect(directoryPreviewName("/repo/src/app")).toBe("app");
+  expect(directoryPreviewName("/repo")).toBe("repo");
+  expect(directoryPreviewName("/")).toBe("");
+});
+
+test("filesystem paths normalize separators and trailing slashes", () => {
+  expect(normalizeFilesystemPath("/repo/src/")).toBe("/repo/src");
+  expect(normalizeFilesystemPath("/")).toBe("/");
+  expect(normalizeFilesystemPath("C:\\repo\\src")).toBe("C:/repo/src");
 });
 
 test("copy paths do not prefix an absolute filesystem entry with the workspace", () => {

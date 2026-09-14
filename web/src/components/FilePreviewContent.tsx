@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { EditorView as CodeMirrorEditorView } from "@codemirror/view";
-import { ChevronLeft, RefreshCw } from "lucide-react";
+import { ChevronLeft, FolderPlus, RefreshCw } from "lucide-react";
 import { fileReviewLineLabel, MAX_QUOTE_LENGTH } from "../annotations";
 import {
   FileAnnotationDrag,
@@ -44,7 +44,13 @@ import {
   selectAllInPreviewElement,
 } from "./previewSelection";
 import { highlightCodeTokens } from "./syntaxHighlighting";
-import { store } from "../store";
+import { store, useStoreSelector } from "../store";
+import {
+  directoryPreviewName,
+  directoryPreviewPath,
+  normalizeFilesystemPath,
+} from "../filesystemPaths";
+import { CreateWorkspaceDialog } from "./CreateWorkspaceDialog";
 
 export type ActiveFilePreviewSelection = {
   entry: FileExplorerEntry | null;
@@ -200,6 +206,7 @@ export function FilePreviewContent({
   onReanchorAnnotations?: (path: string, text: string) => void;
 }) {
   const connectionClient = useConnectionClient();
+  const workspaces = useStoreSelector((state) => state.workspaces);
   const previewSectionRef = useRef<HTMLElement | null>(null);
   const previewContentRef = useRef<HTMLDivElement | null>(null);
   const editorViewRef = useRef<CodeMirrorEditorView | null>(null);
@@ -209,6 +216,7 @@ export function FilePreviewContent({
     "rendered",
   );
   const [detailTab, setDetailTab] = useState<"file" | "changes">("file");
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
   const [pendingAnnotation, setPendingAnnotation] =
     useState<PendingFileAnnotation | null>(null);
   const [markdownSelection, setMarkdownSelection] =
@@ -262,6 +270,18 @@ export function FilePreviewContent({
   const changesAvailable =
     changesContent !== undefined && !!changesKey && !!onOpenChanges;
   const showingChanges = detailTab === "changes" && changesAvailable;
+  const directoryPath = directoryPreviewPath(preview);
+  const directoryWorkspaceRoot = directoryPath
+    ? workspaces.some((workspace) => {
+        const root = workspace.worktree?.checkout_path ?? workspace.cwd;
+        return !!root && normalizeFilesystemPath(root) === directoryPath;
+      })
+    : false;
+  const showDirectoryWorkspaceAction =
+    !!directoryPath && !directoryWorkspaceRoot;
+  const directoryWorkspaceName = directoryPath
+    ? directoryPreviewName(directoryPath)
+    : "";
   const lineAnnotations = useMemo(
     () =>
       annotations.filter(
@@ -440,6 +460,17 @@ export function FilePreviewContent({
             {entry?.name ?? "Preview"}
           </div>
           <div className="file-preview-head-actions">
+            {!showingChanges && showDirectoryWorkspaceAction ? (
+              <button
+                type="button"
+                className="file-preview-refresh"
+                title="New workspace with this directory as CWD"
+                aria-label="New workspace with this directory as CWD"
+                onClick={() => setWorkspaceDialogOpen(true)}
+              >
+                <FolderPlus size={13} aria-hidden="true" />
+              </button>
+            ) : null}
             {!showingChanges && entry && onRefresh ? (
               <button
                 type="button"
@@ -549,6 +580,11 @@ export function FilePreviewContent({
           ) : null}
           {error ? (
             <div className="file-preview-state is-error">{error}</div>
+          ) : null}
+          {!loading && !error && directoryPath ? (
+            <div className="file-preview-state">
+              Directories cannot be previewed.
+            </div>
           ) : null}
           {!loading && !error && preview?.image_data_url ? (
             <ImagePreview
@@ -681,6 +717,12 @@ export function FilePreviewContent({
         draft={annotationComposerDraft}
         onSave={saveAnnotation}
         onClose={closeAnnotationComposer}
+      />
+      <CreateWorkspaceDialog
+        open={workspaceDialogOpen}
+        initialName={directoryWorkspaceName}
+        initialCwd={directoryPath ?? ""}
+        onClose={() => setWorkspaceDialogOpen(false)}
       />
     </section>
   );

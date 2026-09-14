@@ -182,7 +182,8 @@ export function parseRemoteFilePreview(
 ): FilePreviewResult {
   const lines = stdout.split(/\r?\n/);
   const meta = lines.shift() ?? "";
-  const [kind, rawRoot, rawSize, rawMtime, rawRelative] = meta.split("\t");
+  const [kind, rawRoot, rawSize, rawMtime, rawRelative, rawType] =
+    meta.split("\t");
   if (kind !== "META") {
     throw new Error(
       (stdout || "invalid file preview response").trim().slice(0, 1000),
@@ -192,6 +193,18 @@ export function parseRemoteFilePreview(
   const relativePath = rawRelative
     ? Buffer.from(rawRelative, "base64").toString("utf8")
     : requestedPath.replace(/^\/+/, "");
+  if (rawType === "directory") {
+    return {
+      root,
+      path: relativePath,
+      type: "directory",
+      size: 0,
+      mtime_ms: (Number(rawMtime) || 0) * 1000,
+      truncated: false,
+      text: null,
+      binary: false,
+    };
+  }
   const base64 = lines.join("");
   const raw = Buffer.from(base64, "base64");
   const size = Number(rawSize) || raw.length;
@@ -237,24 +250,29 @@ target_real="$(realpath "$target")"
 if [ "$requested_absolute" != "1" ]; then
   case "$target_real/" in "$root_real"/*) ;; *) exit 13 ;; esac
 fi
+if [ "$requested_absolute" = "1" ]; then
+  rel="$target_real"
+else
+  rel="\${target_real#"$root_real"/}"
+fi
+if [ -d "$target_real" ]; then
+  mtime="$(stat -c %Y "$target_real" 2>/dev/null || stat -f %m "$target_real" 2>/dev/null || printf 0)"
+  printf 'META\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$(printf '%s' "$root_real" | base64 | tr -d '\\n')" 0 "$mtime" "$(printf '%s' "$rel" | base64 | tr -d '\\n')" directory
+  exit 0
+fi
 if [ ! -f "$target_real" ]; then
   echo "only regular files can be previewed" >&2
   exit 14
 fi
 size="$(stat -c %s "$target_real" 2>/dev/null || stat -f %z "$target_real" 2>/dev/null || printf 0)"
 mtime="$(stat -c %Y "$target_real" 2>/dev/null || stat -f %m "$target_real" 2>/dev/null || printf 0)"
-if [ "$requested_absolute" = "1" ]; then
-  rel="$target_real"
-else
-  rel="\${target_real#"$root_real"/}"
-fi
 limit="$text_limit"
 case "$(printf '%s' "$rel" | tr '[:upper:]' '[:lower:]')" in
   *.png|*.jpg|*.jpeg|*.gif|*.webp|*.bmp|*.ico|*.avif)
     if [ "$size" -le "$image_limit" ]; then limit="$image_limit"; fi
     ;;
 esac
-printf 'META\\t%s\\t%s\\t%s\\t%s\\n' "$(printf '%s' "$root_real" | base64 | tr -d '\\n')" "$size" "$mtime" "$(printf '%s' "$rel" | base64 | tr -d '\\n')"
+printf 'META\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$(printf '%s' "$root_real" | base64 | tr -d '\\n')" "$size" "$mtime" "$(printf '%s' "$rel" | base64 | tr -d '\\n')" file
 head -c $((limit + 1)) "$target_real" | base64 | tr -d '\\n'
 printf '\\n'
 `;
