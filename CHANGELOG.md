@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Open complete terminal file paths across wrapped rows, including indented
+  continuations in agent output, from either part of the link.
+
 ## 0.7.1 - 2026-09-13
 
 - Use Roamgate service, plugin and data names while keeping existing managed

@@ -12,7 +12,7 @@ import {
 } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
-import type { IBufferLine, ILink, ITheme } from "@xterm/xterm";
+import type { ITheme } from "@xterm/xterm";
 import { Terminal } from "@xterm/xterm";
 import { Columns2, Keyboard, Maximize2, Rows2, X } from "lucide-react";
 import {
@@ -61,9 +61,7 @@ import {
   terminalPushMatches,
 } from "../terminalConnection";
 import {
-  findTerminalFileLinkCandidates,
   type ResolvedTerminalFile,
-  type TerminalFileLinkCandidate,
   TerminalFileResolutionCache,
 } from "../terminalFileLinks";
 import {
@@ -89,6 +87,7 @@ import {
 } from "../terminalIme";
 import { terminalShortcutSequence } from "../terminalKeys";
 import { TerminalHistorySelection } from "../terminalHistorySelection";
+import { registerTerminalLinkProvider } from "../terminalLinkProvider";
 import {
   findTerminalHttpLinks,
   sanitizeTerminalHttpUrl,
@@ -250,142 +249,6 @@ function colorHttpLinksInText(text: string): string {
     offset = link.end;
   }
   return output + text.slice(offset);
-}
-
-function lineTextWithColumns(line: IBufferLine, maxCols: number) {
-  const cell = line.getCell(0);
-  const reusable = cell;
-  let text = "";
-  const columns: number[] = [];
-  const limit = Math.min(line.length, maxCols);
-
-  for (let x = 0; x < limit; x++) {
-    const c = line.getCell(x, reusable);
-    if (!c || c.getWidth() === 0) continue;
-    const chars = c.getChars() || " ";
-    for (let i = 0; i < chars.length; i++) {
-      columns[text.length + i] = x + 1;
-    }
-    text += chars;
-  }
-
-  return { text, columns };
-}
-
-function registerTerminalLinkProvider(
-  term: Terminal,
-  onPreviewPath?: (path: string) => void,
-  resolveRelativePaths?: (paths: string[]) => Promise<Map<string, string>>,
-) {
-  let disposed = false;
-  const registration = term.registerLinkProvider({
-    provideLinks(bufferLineNumber, callback) {
-      const activeBuffer = term.buffer.active;
-      const columnCount = term.cols;
-      const line = activeBuffer.getLine(bufferLineNumber - 1);
-      if (!line) {
-        callback(undefined);
-        return;
-      }
-
-      const { text, columns } = lineTextWithColumns(line, columnCount);
-      const links: ILink[] = [];
-      const occupiedTextRanges: Array<{ start: number; end: number }> = [];
-      for (const match of findTerminalHttpLinks(text)) {
-        const { url } = match;
-        const startIndex = match.start;
-        occupiedTextRanges.push({
-          start: startIndex,
-          end: match.end,
-        });
-
-        const endIndex = startIndex + url.length - 1;
-        const startX = columns[startIndex];
-        const endX = columns[endIndex];
-        if (!startX || !endX) continue;
-
-        links.push({
-          range: {
-            start: { x: startX, y: bufferLineNumber },
-            end: { x: endX, y: bufferLineNumber },
-          },
-          text: url,
-          activate(event, text) {
-            event.preventDefault();
-            if (!terminalLinkModifierMatches(event)) return;
-            const url = sanitizeTerminalHttpUrl(text);
-            if (url) window.open(url, "_blank", "noopener,noreferrer");
-          },
-        });
-      }
-
-      const addFileLink = (
-        candidate: TerminalFileLinkCandidate,
-        resolvedPath: string,
-      ) => {
-        const endIndex = candidate.end - 1;
-        const startX = columns[candidate.start];
-        const endX = columns[endIndex];
-        if (!startX || !endX) return;
-
-        links.push({
-          range: {
-            start: { x: startX, y: bufferLineNumber },
-            end: { x: endX, y: bufferLineNumber },
-          },
-          text: candidate.path,
-          activate(event) {
-            event.preventDefault();
-            if (!terminalLinkModifierMatches(event)) return;
-            onPreviewPath?.(resolvedPath);
-          },
-        });
-      };
-
-      const relativeCandidates: TerminalFileLinkCandidate[] = [];
-      if (onPreviewPath) {
-        for (const candidate of findTerminalFileLinkCandidates(
-          text,
-          occupiedTextRanges,
-        )) {
-          if (candidate.absolute) addFileLink(candidate, candidate.path);
-          else relativeCandidates.push(candidate);
-        }
-      }
-
-      const finish = () => {
-        if (disposed) return;
-        if (term.buffer.active !== activeBuffer || term.cols !== columnCount) {
-          callback(undefined);
-          return;
-        }
-        const currentLine = activeBuffer.getLine(bufferLineNumber - 1);
-        const currentText = currentLine
-          ? lineTextWithColumns(currentLine, columnCount).text
-          : null;
-        callback(currentText === text && links.length > 0 ? links : undefined);
-      };
-      if (relativeCandidates.length === 0 || !resolveRelativePaths) {
-        finish();
-        return;
-      }
-      void resolveRelativePaths(
-        relativeCandidates.map((item) => item.path),
-      ).then((resolved) => {
-        for (const candidate of relativeCandidates) {
-          const path = resolved.get(candidate.path);
-          if (path) addFileLink(candidate, path);
-        }
-        finish();
-      }, finish);
-    },
-  });
-  return {
-    dispose() {
-      disposed = true;
-      registration.dispose();
-    },
-  };
 }
 
 function isEditableElement(target: EventTarget | null) {
@@ -807,7 +670,7 @@ export function TerminalView({
     [connectionClient, onOpenWorkspaceFile, terminalIdentity],
   );
 
-  const resolveRelativeFilePaths = useCallback(
+  const resolveTerminalFilePaths = useCallback(
     async (paths: string[]) => {
       const workspaceId = previewWorkspaceIdRef.current;
       if (!workspaceId) return new Map<string, string>();
@@ -886,7 +749,8 @@ export function TerminalView({
     const linkProvider = registerTerminalLinkProvider(
       term,
       openPathInInspector,
-      resolveRelativeFilePaths,
+      resolveTerminalFilePaths,
+      () => endpointPresentationRef.current?.displayedFrame != null,
     );
 
     const imeFallback = new TerminalImeFallbackTracker();
@@ -2176,7 +2040,7 @@ export function TerminalView({
     focusTerminalSoon,
     openPathInInspector,
     relayViewportFor,
-    resolveRelativeFilePaths,
+    resolveTerminalFilePaths,
     scrollPage,
     terminalIdentity,
   ]);

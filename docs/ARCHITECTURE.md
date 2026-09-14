@@ -60,6 +60,14 @@ Endpoint repaints are clipped to each viewer's requested viewport, including
 wide-character and cursor boundaries. Browsers discard oversized frames that
 arrive after a local shrink or were held during text selection.
 
+Terminal links retain cell coordinates while scanning soft-wrapped text. Endpoint
+cell repaints do not contain soft-wrap metadata, so file detection also considers
+adjacent path fragments with application-inserted indentation and padding. These
+inferred paths must pass workspace-scoped file resolution before activation;
+ordinary rows remain independent when no combined file exists. Scanning is bounded,
+blank lines separate contexts, and HTTP links use only explicit soft wraps. Pending
+lookups are discarded if the buffer, text, cell positions, or wrapping changes.
+
 Method/capability advertisements belong to each terminal socket, never another
 terminal or runtime. Reattachment negotiates again; browser reconnect and
 connection changes clear cached availability until refreshed. The bridge returns

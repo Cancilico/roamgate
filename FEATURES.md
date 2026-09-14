@@ -61,7 +61,8 @@ macOS preset; see [other platform bindings](#keyboard-shortcuts).
   recipient, not proven originating-pane ownership; see
   [clipboard compatibility](docs/DEPLOYMENT.md#herdr-compatibility).
 - `Cmd/Ctrl`-click HTTP(S) links to open safely in a new tab, or workspace-relative
-  / absolute paths to preview text, Markdown, or images.
+  / absolute paths to preview text, Markdown, or images. Wrapped paths remain
+  one link, including indented continuations in agent output.
 
 ## Workspace Inspector
 
