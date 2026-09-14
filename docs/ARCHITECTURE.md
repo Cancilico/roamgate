@@ -26,6 +26,17 @@ operations, terminal and clipboard relay, authentication, health, and updates.
 React owns presentation and browser-local preferences. xterm displays Herdr's
 server-rendered output rather than reconstructing a PTY in the bridge.
 
+## Agent activity
+
+The bridge enriches `agent.list` with optional `last_activity_at` epoch
+milliseconds from the session file's modification time. Resolution uses the
+reported session identity and the connection's file access, without parsing
+transcripts. File checks have bounded concurrency and a 1.5-second response
+budget; unavailable metadata never removes agents from the list. Remote IDs
+that require local directory searches are left unresolved rather than matched
+to this host's sessions. The browser uses timestamps for idle-agent recency,
+with Herdr's state-change sequence as a fallback, and stores no activity history.
+
 ## Terminal endpoints
 
 Interface text size uses root CSS zoom. Terminal surfaces cancel that zoom and

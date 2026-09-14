@@ -102,7 +102,10 @@ See [resource ownership](docs/ARCHITECTURE.md#workspace-resource-ownership).
   done, working, idle, unknown. Sort/Group icons offer workspace/manual order
   and status/workspace/type groups with collapse controls. Ungrouped manual
   order supports dragging. Sort/group preferences are browser-local; manual
-  order is per connection.
+  order is per connection. Idle agents sort by newest session-file activity
+  reported by the bridge, with Herdr state-change sequence as a fallback.
+  Recency survives refreshes and completion acknowledgements without browser
+  activity tracking; manual and workspace order stay unchanged.
 - Rows show tab names before pane IDs; blank or numbered defaults (`2`, `Tab 2`)
   are omitted in both views.
 - Inspect turns, tokens, update time, session ID/file, and other metadata. Session

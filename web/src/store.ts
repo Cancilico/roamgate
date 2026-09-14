@@ -1,4 +1,5 @@
 import { roamgateLocalStorage, roamgateSessionStorage } from "./browserStorage";
+import { withAgentActivity } from "./agentOrder";
 import {
   type EndpointAvailability,
   parseEndpointAdvertisement,
@@ -1118,15 +1119,17 @@ async function refreshNow(lease = captureConnectionLease()) {
     settledAt: state.pendingFocusWorkspaceSettledAt,
   };
   try {
-    const [wsRes, tabRes, paneRes] = await Promise.all([
+    const [wsRes, tabRes, paneRes, agentRes] = await Promise.all([
       lease.client.call("workspace.list"),
       lease.client.call("tab.list"),
       lease.client.call("pane.list"),
+      // Older servers may omit agent metadata; ordinary navigation still works.
+      lease.client.call("agent.list").catch(() => null),
     ]);
     if (!leaseIsCurrent(lease)) return;
     const workspaces: Workspace[] = wsRes?.workspaces ?? [];
     const tabs: Tab[] = tabRes?.tabs ?? [];
-    const panes: Pane[] = paneRes?.panes ?? [];
+    const panes = withAgentActivity(paneRes?.panes ?? [], agentRes);
     forgetTerminalRelayViewportsExcept(
       lease.connectionId,
       lease.generation,

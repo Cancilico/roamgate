@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
+import { enrichAgentActivity } from "./agent-activity";
 import type { HerdrCall, SessionFile } from "./session-types";
 import {
   createAgentSessionResolverContext,
@@ -26,6 +27,12 @@ export function createAgentSessionHandlers(args: {
   const resolverContext = createAgentSessionResolverContext();
   const cache = createSessionProjectionCache(args.files);
   return {
+    listWithActivity: async (params: Record<string, unknown>) =>
+      enrichAgentActivity(
+        await args.herdrCall("agent.list", params),
+        args.files,
+        resolverContext,
+      ),
     readHistory: async (params: Record<string, unknown>) => {
       if (params.history_version !== 2) {
         return readAgentMessageHistory(

@@ -1563,3 +1563,62 @@ describe("basic Herdr 0.9 compatibility", () => {
     });
   }
 });
+
+describe("agent activity refresh", () => {
+  test("reloads server recency and tolerates unavailable agent metadata", async () => {
+    const originalConnection = bridge.connection;
+    const snapshot = partitionState();
+    let sequence = 42;
+    let activity = 1234;
+    let unavailable = false;
+    bridge.connection = (() => ({
+      connectionId: "alpha",
+      generation: 10,
+      isCurrent: () => true,
+      call: (async (method) => {
+        if (method === "workspace.list")
+          return { workspaces: structuredClone(snapshot.workspaces) };
+        if (method === "tab.list")
+          return { tabs: structuredClone(snapshot.tabs) };
+        if (method === "pane.list")
+          return { panes: structuredClone(snapshot.panes) };
+        if (method === "agent.list") {
+          if (unavailable) throw new Error("Unsupported method");
+          return {
+            agents: snapshot.panes.map((pane) => ({
+              ...pane,
+              state_change_seq: sequence,
+              last_activity_at: activity,
+            })),
+          };
+        }
+        if (method === "pane.layout") return { layout: null };
+        return {};
+      }) as ConnectionClient["call"],
+    })) as typeof bridge.connection;
+    try {
+      __storeTesting.replaceState(snapshot);
+      await store.refresh();
+      expect(store.get().panes[0]?.state_change_seq).toBe(42);
+      expect(store.get().panes[0]?.last_activity_at).toBe(1234);
+      __storeTesting.replaceState(snapshot); // Fresh browser snapshot has no activity history.
+      await store.refresh();
+      expect(store.get().panes[0]?.state_change_seq).toBe(42);
+      expect(store.get().panes[0]?.last_activity_at).toBe(1234);
+      sequence = 2; // Herdr restarted: accept its new sequence rather than a cached maximum.
+      await store.refresh();
+      expect(store.get().panes[0]?.state_change_seq).toBe(2);
+      expect(store.get().panes[0]?.last_activity_at).toBe(1234);
+      activity = 2345;
+      await store.refresh();
+      expect(store.get().panes[0]?.last_activity_at).toBe(2345);
+      unavailable = true;
+      await store.refresh();
+      expect(store.get().error).toBeNull();
+      expect(store.get().panes).toEqual(snapshot.panes);
+    } finally {
+      bridge.connection = originalConnection;
+      __storeTesting.replaceState(partitionState());
+    }
+  });
+});

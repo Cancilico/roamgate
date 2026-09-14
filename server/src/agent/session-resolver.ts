@@ -220,7 +220,23 @@ export async function resolveAgentSession(
   if (!params.pane_id) throw new Error("agent session requires pane_id");
 
   const result = await herdrCall("agent.get", { target: params.pane_id });
-  const agentInfo = parseAgentInfo(result);
+  return resolveAgentSessionInfo(
+    rawParams,
+    parseAgentInfo(result),
+    files,
+    context,
+  );
+}
+
+/** Resolve an existing agent snapshot without another Herdr request. */
+export async function resolveAgentSessionInfo(
+  rawParams: Record<string, unknown>,
+  agentInfo: Record<string, unknown> | null,
+  files: AgentSessionFileAccess,
+  context: AgentSessionResolverContext,
+): Promise<AgentSessionResolved> {
+  const params = normalizeParams(rawParams);
+  if (!params.pane_id) throw new Error("agent session requires pane_id");
   const session = parseAgentSession(agentInfo);
   const agent = normalizeAgentName(
     stringValue(agentInfo?.agent) || session?.agent || params.agent || "",

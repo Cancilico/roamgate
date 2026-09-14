@@ -777,6 +777,17 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     return;
   }
 
+  if (method === "agent.list") {
+    try {
+      const result = await connection.agentSessions.listWithActivity(
+        params ?? {},
+      );
+      sendReply({ id, result }, "agent-list");
+    } catch (e) {
+      sendError("agent-list-error", e);
+    }
+    return;
+  }
   if (method === "agent_history.get") {
     try {
       const result = await readAgentMessageHistory(params ?? {});
