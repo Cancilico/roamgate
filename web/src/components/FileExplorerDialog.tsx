@@ -38,6 +38,7 @@ import {
   subscribeFileExplorerRefresh,
 } from "../fileExplorerRefresh";
 import { store, useStoreSelector } from "../store";
+import { copyTextFromUserGesture } from "../terminalClipboard";
 import {
   connectionClientScopeKey,
   useConnectionClient,
@@ -1619,7 +1620,7 @@ function FileExplorerContent({
     const root = rootInfo?.root || initialWorkspacePath(workspace);
     const value = root ? absolutePath(root, entry) : entry.path;
     try {
-      await navigator.clipboard.writeText(value);
+      await copyTextFromUserGesture(value);
       if (!connectionClient.isCurrent()) return;
       store.notify({
         kind: "success",

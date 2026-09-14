@@ -22,6 +22,7 @@ import type {
   ReviewAnnotation,
 } from "../annotations";
 import type { FileExplorerEntry, FilePreview } from "../types";
+import { copyTextFromUserGesture } from "../terminalClipboard";
 import { useConnectionClient } from "../useConnectionClient";
 import {
   resolveWorkspaceMarkdownImageUrl,
@@ -386,7 +387,7 @@ export function FilePreviewContent({
   const copyPreviewText = async () => {
     if (previewText === null) return;
     try {
-      await navigator.clipboard.writeText(previewText);
+      await copyTextFromUserGesture(previewText);
       store.notify({
         kind: "success",
         message: "File content copied",

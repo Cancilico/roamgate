@@ -4,6 +4,7 @@
 
 - Open complete terminal file paths across wrapped rows, including indented
   continuations in agent output, from either part of the link.
+- Fix copying preview content and file paths when Roamgate is opened over HTTP.
 
 ## 0.7.1 - 2026-09-13
 
