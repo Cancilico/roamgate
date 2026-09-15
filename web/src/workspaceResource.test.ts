@@ -399,6 +399,79 @@ describe("workspace resource scope", () => {
     );
   });
 
+  test("restores maximized state without losing dock sizes or either list width", () => {
+    const storage = memoryStorage();
+    const scope = resourceScopeForWorkspace("local", workspace("w1"));
+    const state: WorkspaceInspectorState = {
+      scope,
+      open: true,
+      view: "files",
+      dock: "right",
+      size: 610,
+      expanded: false,
+    };
+    writeInspectorPreferences(storage, state);
+    writeInspectorNavigationRatio(storage, scope, "files", 0.55);
+    writeInspectorPreferences(storage, { ...state, expanded: true });
+    writeInspectorNavigationRatio(storage, scope, "files", 0.27, true);
+    writeInspectorNavigationRatio(storage, scope, "changes", 0.3, true);
+    writeInspectorPreferences(storage, {
+      ...state,
+      open: false,
+      expanded: true,
+    });
+    expect(readInspectorPreferences(storage, scope)).toMatchObject({
+      expanded: true,
+      rightSize: 610,
+      filesNavigationRatio: 0.55,
+      expandedNavigationRatios: { files: 0.27, changes: 0.3 },
+    });
+    writeInspectorPreferences(storage, { ...state, dock: "bottom", size: 380 });
+    expect(readInspectorPreferences(storage, scope)).toMatchObject({
+      expanded: false,
+      rightSize: 610,
+      bottomSize: 380,
+      expandedNavigationRatios: { files: 0.27, changes: 0.3 },
+    });
+    const other = resourceScopeForWorkspace("remote", workspace("w1"));
+    expect(readInspectorPreferences(storage, other)).toMatchObject({
+      expanded: false,
+      expandedNavigationRatios: {},
+    });
+  });
+
+  test("old preferences use an independent, narrow default for expanded lists", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ filesNavigationRatio: 0.4 }),
+    };
+    const scope = resourceScopeForWorkspace("local", workspace("w1"));
+    expect(readInspectorPreferences(storage, scope)).toMatchObject({
+      expanded: false,
+      filesNavigationRatio: 0.4,
+      expandedNavigationRatios: {},
+    });
+    for (const width of [1000, 1400, 1800]) {
+      expect(
+        inspectorNavigationRatioAtPosition(300, width) * width,
+      ).toBeCloseTo(300);
+    }
+    expect(
+      readInspectorPreferences(
+        {
+          getItem: () =>
+            JSON.stringify({
+              expanded: "true",
+              expandedNavigationRatios: { files: "bad", changes: 99 },
+            }),
+        },
+        scope,
+      ),
+    ).toMatchObject({
+      expanded: false,
+      expandedNavigationRatios: { changes: 0.75 },
+    });
+  });
+
   test("persists dock and size independently for each checkout", () => {
     const storage = memoryStorage();
     const scope = resourceScopeForWorkspace(
@@ -418,6 +491,8 @@ describe("workspace resource scope", () => {
     expect(readInspectorPreferences(storage, scope)).toEqual({
       view: "changes",
       dock: "bottom",
+      expanded: false,
+      expandedNavigationRatios: {},
       rightSize: 520,
       bottomSize: 410,
       filesNavigationRatio: 0.4,

@@ -14,7 +14,14 @@ import { FitAddon } from "@xterm/addon-fit";
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import type { ITheme } from "@xterm/xterm";
 import { Terminal } from "@xterm/xterm";
-import { Columns2, Keyboard, Maximize2, Rows2, X } from "lucide-react";
+import {
+  Columns2,
+  Keyboard,
+  Maximize2,
+  Minimize2,
+  Rows2,
+  X,
+} from "lucide-react";
 import {
   type CSSProperties,
   useCallback,
@@ -440,6 +447,8 @@ export function TerminalView({
   const isActivePane = !!pane && (!paneId || pane.pane_id === activePaneId);
   const canShowAgentHistory = isActivePane && paneHasAgentHistory(pane);
   const canClosePane = !!pane && paneCanClose(s.panes, pane.pane_id);
+  const paneZoomed =
+    s.layout?.zoomed === true && s.layout.focused_pane_id === pane?.pane_id;
   const composerOpen = controlledComposerOpen ?? localComposerOpen;
   const composerOpenRef = useRef(composerOpen);
   composerOpenRef.current = composerOpen;
@@ -2531,35 +2540,39 @@ export function TerminalView({
               History unavailable: pane.scroll not advertised
             </span>
           ) : null}
+          {!paneZoomed ? (
+            <>
+              <button
+                type="button"
+                className="terminal-pane-action"
+                title="Split pane right"
+                aria-label="Split pane right"
+                onPointerDown={preventPaneActionFocus}
+                onClick={() => store.splitPane(pane.pane_id, "right")}
+              >
+                <Columns2 size={14} />
+              </button>
+              <button
+                type="button"
+                className="terminal-pane-action"
+                title="Split pane down"
+                aria-label="Split pane down"
+                onPointerDown={preventPaneActionFocus}
+                onClick={() => store.splitPane(pane.pane_id, "down")}
+              >
+                <Rows2 size={14} />
+              </button>
+            </>
+          ) : null}
           <button
             type="button"
             className="terminal-pane-action"
-            title="Split pane right"
-            aria-label="Split pane right"
-            onPointerDown={preventPaneActionFocus}
-            onClick={() => store.splitPane(pane.pane_id, "right")}
-          >
-            <Columns2 size={14} />
-          </button>
-          <button
-            type="button"
-            className="terminal-pane-action"
-            title="Split pane down"
-            aria-label="Split pane down"
-            onPointerDown={preventPaneActionFocus}
-            onClick={() => store.splitPane(pane.pane_id, "down")}
-          >
-            <Rows2 size={14} />
-          </button>
-          <button
-            type="button"
-            className="terminal-pane-action"
-            title="Toggle pane zoom"
-            aria-label="Toggle pane zoom"
+            title={paneZoomed ? "Restore pane" : "Maximize pane"}
+            aria-label={paneZoomed ? "Restore pane" : "Maximize pane"}
             onPointerDown={preventPaneActionFocus}
             onClick={() => store.zoomPane(pane.pane_id)}
           >
-            <Maximize2 size={14} />
+            {paneZoomed ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
           {canClosePane ? (
             <button

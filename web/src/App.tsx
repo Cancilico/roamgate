@@ -1293,7 +1293,7 @@ export default function App() {
   );
   const activateTerminalSurface = useCallback(() => {
     updateInspectorState((current) =>
-      current ? { ...current, open: false, expanded: false } : current,
+      current ? { ...current, open: false } : current,
     );
     setMobileView("session");
     if (!mobile) {
@@ -1459,7 +1459,7 @@ export default function App() {
         view,
         dock,
         size,
-        expanded: sameOwner ? current.expanded : false,
+        expanded: sameOwner ? current.expanded : preferences.expanded,
         returnTabId,
         originPaneId: options.originPaneId,
         initialDirectory: options.initialDirectory,
@@ -1542,7 +1542,7 @@ export default function App() {
     if (!current) return;
     const returnFocus = inspectorReturnFocusRef.current;
     inspectorReturnFocusRef.current = null;
-    commitInspectorState({ ...current, open: false, expanded: false });
+    commitInspectorState({ ...current, open: false });
     setMobileView("session");
     const snapshot = store.get();
     const returnTab = current.returnTabId
@@ -3037,7 +3037,7 @@ export default function App() {
               inspectorState?.open
                 ? `has-inspector inspector-dock-${inspectorState.dock}`
                 : ""
-            } ${inspectorState?.expanded ? "is-inspector-expanded" : ""}`}
+            } ${inspectorState?.open && inspectorState.expanded ? "is-inspector-expanded" : ""}`}
           >
             <div className="workspace-terminal-surface">
               <TerminalPaneLayout

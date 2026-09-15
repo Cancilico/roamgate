@@ -81,6 +81,8 @@ export interface WorkspaceInspectorState {
 export interface InspectorPreferences {
   view: InspectorView;
   dock: InspectorDock;
+  expanded: boolean;
+  expandedNavigationRatios: Partial<Record<InspectorSplitView, number>>;
   rightSize: number;
   bottomSize: number;
   filesNavigationRatio: number;
@@ -245,6 +247,8 @@ export function readInspectorPreferences(
   const fallback: InspectorPreferences = {
     view: "files",
     dock: "right",
+    expanded: false,
+    expandedNavigationRatios: {},
     rightSize: finiteSize(defaults.rightSize, DEFAULT_RIGHT_SIZE),
     bottomSize: finiteSize(defaults.bottomSize, DEFAULT_BOTTOM_SIZE),
     filesNavigationRatio: DEFAULT_INSPECTOR_NAVIGATION_RATIO,
@@ -260,6 +264,15 @@ export function readInspectorPreferences(
           ? value.view
           : "files",
       dock: value.dock === "bottom" ? "bottom" : "right",
+      expanded: value.expanded === true,
+      expandedNavigationRatios: Object.fromEntries(
+        (["files", "changes"] as const).flatMap((view) => {
+          const ratio = value.expandedNavigationRatios?.[view];
+          return typeof ratio === "number" && Number.isFinite(ratio)
+            ? [[view, finiteNavigationRatio(ratio)]]
+            : [];
+        }),
+      ),
       rightSize: finiteSize(value.rightSize, DEFAULT_RIGHT_SIZE),
       bottomSize: finiteSize(value.bottomSize, DEFAULT_BOTTOM_SIZE),
       filesNavigationRatio: finiteNavigationRatio(value.filesNavigationRatio),
@@ -281,6 +294,7 @@ export function writeInspectorPreferences(
     ...previous,
     view: state.view,
     dock: state.dock,
+    expanded: state.expanded,
     rightSize: state.dock === "right" ? state.size : previous.rightSize,
     bottomSize: state.dock === "bottom" ? state.size : previous.bottomSize,
   };
@@ -292,13 +306,24 @@ export function writeInspectorNavigationRatio(
   scope: ResourceScope,
   view: InspectorSplitView,
   ratio: number,
+  expanded = false,
 ): void {
   const previous = readInspectorPreferences(storage, scope);
   const key =
     view === "files" ? "filesNavigationRatio" : "changesNavigationRatio";
   storage.setItem(
     preferencesStorageKey(scope),
-    JSON.stringify({ ...previous, [key]: finiteNavigationRatio(ratio) }),
+    JSON.stringify(
+      expanded
+        ? {
+            ...previous,
+            expandedNavigationRatios: {
+              ...previous.expandedNavigationRatios,
+              [view]: finiteNavigationRatio(ratio),
+            },
+          }
+        : { ...previous, [key]: finiteNavigationRatio(ratio) },
+    ),
   );
 }
 

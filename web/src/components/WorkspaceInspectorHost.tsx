@@ -111,12 +111,14 @@ function navigationRatioForPointer(
 
 function InspectorSplitResizer({
   ratio,
+  resetRatio = DEFAULT_INSPECTOR_NAVIGATION_RATIO,
   navigationId,
   detailId,
   onChange,
   onCommit,
 }: {
   ratio: number;
+  resetRatio?: number;
   navigationId: string;
   detailId: string;
   onChange: (ratio: number) => void;
@@ -193,9 +195,9 @@ function InspectorSplitResizer({
         onCommit(dragRatioRef.current);
       }}
       onDoubleClick={() => {
-        dragRatioRef.current = DEFAULT_INSPECTOR_NAVIGATION_RATIO;
-        onChange(DEFAULT_INSPECTOR_NAVIGATION_RATIO);
-        onCommit(DEFAULT_INSPECTOR_NAVIGATION_RATIO);
+        dragRatioRef.current = resetRatio;
+        onChange(resetRatio);
+        onCommit(resetRatio);
       }}
       onKeyDown={handleKeyDown}
     />
@@ -438,16 +440,25 @@ export function WorkspaceInspectorHost({
       setFileDiffState({ resourceKey: contentResourceKey, entries }),
     [contentResourceKey],
   );
-  const [navigationRatios, setNavigationRatios] = useState(() => {
-    const preferences = readInspectorPreferences(
-      roamgateLocalStorage,
-      state.scope,
-    );
-    return {
-      files: preferences.filesNavigationRatio,
-      changes: preferences.changesNavigationRatio,
-    };
-  });
+  const [navigationPreferences, setNavigationPreferences] = useState(() =>
+    readInspectorPreferences(roamgateLocalStorage, state.scope),
+  );
+  const defaultNavigationRatio = state.expanded
+    ? inspectorNavigationRatioAtPosition(
+        300,
+        hostWidth - INSPECTOR_RESOURCE_HORIZONTAL_PADDING,
+      )
+    : DEFAULT_INSPECTOR_NAVIGATION_RATIO;
+  const navigationRatios = {
+    files: state.expanded
+      ? (navigationPreferences.expandedNavigationRatios.files ??
+        defaultNavigationRatio)
+      : navigationPreferences.filesNavigationRatio,
+    changes: state.expanded
+      ? (navigationPreferences.expandedNavigationRatios.changes ??
+        defaultNavigationRatio)
+      : navigationPreferences.changesNavigationRatio,
+  };
   const { compact, splitEnabled } = workspaceInspectorLayout(hostWidth);
   // The navigation/detail split is draggable whenever both panes fit side by
   // side, not only in the expanded layout, so docked inspectors can resize
@@ -462,7 +473,22 @@ export function WorkspaceInspectorHost({
   };
 
   const setNavigationRatio = (view: InspectorSplitView, ratio: number) => {
-    setNavigationRatios((current) => ({ ...current, [view]: ratio }));
+    setNavigationPreferences((current) =>
+      state.expanded
+        ? {
+            ...current,
+            expandedNavigationRatios: {
+              ...current.expandedNavigationRatios,
+              [view]: ratio,
+            },
+          }
+        : {
+            ...current,
+            [view === "files"
+              ? "filesNavigationRatio"
+              : "changesNavigationRatio"]: ratio,
+          },
+    );
   };
   const commitNavigationRatio = (view: InspectorSplitView, ratio: number) => {
     writeInspectorNavigationRatio(
@@ -470,6 +496,7 @@ export function WorkspaceInspectorHost({
       state.scope,
       view,
       ratio,
+      state.expanded,
     );
   };
   const splitStyle = (view: InspectorSplitView) =>
@@ -556,10 +583,7 @@ export function WorkspaceInspectorHost({
       roamgateLocalStorage,
       state.scope,
     );
-    setNavigationRatios({
-      files: preferences.filesNavigationRatio,
-      changes: preferences.changesNavigationRatio,
-    });
+    setNavigationPreferences(preferences);
   }, [contentResourceKey, state.scope]);
 
   useLayoutEffect(() => {
@@ -774,6 +798,7 @@ export function WorkspaceInspectorHost({
             {splitEnabled ? (
               <InspectorSplitResizer
                 ratio={navigationRatios.files}
+                resetRatio={defaultNavigationRatio}
                 navigationId={navigationIds.files}
                 detailId={detailIds.files}
                 onChange={(ratio) => setNavigationRatio("files", ratio)}
@@ -899,6 +924,7 @@ export function WorkspaceInspectorHost({
             {splitEnabled ? (
               <InspectorSplitResizer
                 ratio={navigationRatios.changes}
+                resetRatio={defaultNavigationRatio}
                 navigationId={navigationIds.changes}
                 detailId={detailIds.changes}
                 onChange={(ratio) => setNavigationRatio("changes", ratio)}
@@ -956,6 +982,7 @@ export function WorkspaceInspectorHost({
                 pane={historyPane}
                 open={visible && state.open && state.view === "history"}
                 embedded
+                wide={!compact}
                 onOpenChange={(open) => {
                   if (!open) onClose();
                 }}

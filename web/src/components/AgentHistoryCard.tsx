@@ -10,6 +10,7 @@ export const AgentHistoryCard = memo(function AgentHistoryCard({
   entry,
   index,
   highlighted = false,
+  selected = false,
   contentLoading = false,
   onExpand,
   onLoadContent,
@@ -17,6 +18,7 @@ export const AgentHistoryCard = memo(function AgentHistoryCard({
   entry: HistoryEntry;
   index: number;
   highlighted?: boolean;
+  selected?: boolean;
   contentLoading?: boolean;
   onExpand: (entry: HistoryEntry) => void;
   onLoadContent?: (entry: HistoryEntry) => void;
@@ -44,7 +46,7 @@ export const AgentHistoryCard = memo(function AgentHistoryCard({
   const time = new Date(entry.sent_at);
   return (
     <article
-      className={`agent-history-card is-${entry.role} ${highlighted ? "is-minimap-target" : ""}`}
+      className={`agent-history-card is-${entry.role} ${highlighted ? "is-minimap-target" : ""} ${selected ? "is-selected" : ""}`}
       data-sequence={index}
     >
       <div className="agent-history-card-meta">
