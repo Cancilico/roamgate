@@ -107,7 +107,9 @@ See [resource ownership](docs/ARCHITECTURE.md#workspace-resource-ownership).
   counts 200 conversation entries, not associated tools; exports remain complete.
   See [History synchronization](docs/HISTORY.md).
 - Choose **Agents: Separate** at the bottom of Workspaces for a dedicated panel,
-  or keep agents nested. Separate defaults to **Attention first**: blocked,
+  keep agents nested, or pick **Agents: Compact** to hide agent rows and always
+  show each workspace/worktree tab count instead. Separate defaults to
+  **Attention first**: blocked,
   done, working, idle, unknown. Sort/Group icons offer workspace/manual order
   and status/workspace/type groups with collapse controls. Ungrouped manual
   order supports dragging. Sort/group preferences are browser-local; manual

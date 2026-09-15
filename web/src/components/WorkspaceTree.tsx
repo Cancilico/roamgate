@@ -123,6 +123,14 @@ function AgentLayoutControl({
       <div role="group" aria-label="Agent list layout">
         <button
           type="button"
+          className={value === "compact" ? "is-active" : ""}
+          aria-pressed={value === "compact"}
+          onClick={() => onChange("compact")}
+        >
+          Compact
+        </button>
+        <button
+          type="button"
           className={value === "nested" ? "is-active" : ""}
           aria-pressed={value === "nested"}
           onClick={() => onChange("nested")}
@@ -615,6 +623,7 @@ export function WorkspaceTree({
                 : EMPTY_AGENT_PANES_BY_WORKSPACE
             }
             tabCountsByWorkspace={tabCountsByWorkspace}
+            alwaysShowTabCount={agentLayout === "compact"}
             activePaneId={activePaneId}
             pinnedWorkspaceKeys={pinnedWorkspaceSet}
             collapsedWorktreeGroupKeys={collapsedWorktreeGroupSet}
@@ -882,6 +891,7 @@ function WorkspaceRow({
   childrenByParent,
   agentsByWorkspace,
   tabCountsByWorkspace,
+  alwaysShowTabCount = false,
   activePaneId,
   pinnedWorkspaceKeys,
   collapsedWorktreeGroupKeys,
@@ -897,6 +907,7 @@ function WorkspaceRow({
   childrenByParent: Map<string, Workspace[]>;
   agentsByWorkspace: ReadonlyMap<string, Pane[]>;
   tabCountsByWorkspace: ReadonlyMap<string, number>;
+  alwaysShowTabCount?: boolean;
   activePaneId: string | null;
   pinnedWorkspaceKeys: ReadonlySet<string>;
   collapsedWorktreeGroupKeys: ReadonlySet<string>;
@@ -910,6 +921,7 @@ function WorkspaceRow({
   const children = childrenByParent.get(w.workspace_id) ?? [];
   const agents = agentsByWorkspace.get(w.workspace_id) ?? [];
   const tabCount = tabCountsByWorkspace.get(w.workspace_id) ?? 0;
+  const tabCountVisible = alwaysShowTabCount || tabCount > 1;
   const s = useStoreSelector(
     (state) => ({
       pendingFocusWorkspaceId: state.pendingFocusWorkspaceId,
@@ -990,7 +1002,7 @@ function WorkspaceRow({
           hasActiveAgent ? "has-active-agent" : ""
         } ${isChild ? "is-child" : ""} ${pinned ? "is-pinned" : ""} ${
           isPendingFocus ? "is-loading" : ""
-        } ${tabCount > 1 ? "has-tab-count" : ""} ${
+        } ${tabCountVisible ? "has-tab-count" : ""} ${
           workspaceDrag?.isDragging ? "is-dragging" : ""
         } ${
           workspaceDrag?.dropPosition
@@ -1116,7 +1128,7 @@ function WorkspaceRow({
           <span className="twisty" aria-hidden="true" />
         )}
         <strong className="ws-label">{workspaceDisplayName(w)}</strong>
-        {tabCount > 1 ? (
+        {tabCountVisible ? (
           <span
             className="workspace-tab-count"
             title={`${tabCount} tabs`}
@@ -1166,6 +1178,7 @@ function WorkspaceRow({
               childrenByParent={childrenByParent}
               agentsByWorkspace={agentsByWorkspace}
               tabCountsByWorkspace={tabCountsByWorkspace}
+              alwaysShowTabCount={alwaysShowTabCount}
               activePaneId={activePaneId}
               pinnedWorkspaceKeys={pinnedWorkspaceKeys}
               collapsedWorktreeGroupKeys={collapsedWorktreeGroupKeys}
