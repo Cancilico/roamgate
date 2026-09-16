@@ -247,8 +247,6 @@ File operations and previews work locally and over SSH.
   **Pin annotations** switches to a fixed layout beside or below the workspace;
   **Float annotations** restores the overlay. The choice stays in this browser.
   Mobile uses an explicit Annotations surface with touch controls.
-  See the [floating](docs/screenshots/annotations-floating.png) and
-  [fixed](docs/screenshots/annotations-fixed.png) desktop layouts.
 - Click/drag diff line numbers or source annotation gutters to comment on lines;
   release opens the editor with file, range, and content snapshot.
 - Select rendered Markdown passages to capture their text and nearest heading.
