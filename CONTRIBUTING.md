@@ -93,9 +93,11 @@ align the site's installer URL and workflow probe.
 
 ## Pull Requests
 
-Use focused commits and short imperative messages. PRs describe behavior,
-verification, compatibility impact, and UI screenshots. Do not commit generated
-assets (`dist/`, `server/public/`) or binaries.
+Use focused commits and short imperative messages. PR descriptions should cover
+behavior, verification, and compatibility impact. For UI changes, upload
+screenshots as GitHub attachments and embed them in the PR description. Do not
+commit screenshot files to the repository solely for PR review. Do not commit
+generated assets (`dist/`, `server/public/`) or binaries.
 
 Unlabeled PRs get `documentation` (docs-only), `dependencies` (dependency updates),
 `bug` (fix titles), or `enhancement` (other code). Release preparation gets

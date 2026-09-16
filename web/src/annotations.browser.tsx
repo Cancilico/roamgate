@@ -11,6 +11,11 @@ import {
 } from "./annotations";
 import { roamgateLocalStorage } from "./browserStorage";
 import { __storeTesting, store } from "./store";
+import type { ShortcutId } from "./shortcutBindings";
+import {
+  getShortcutSnapshot,
+  selectShortcutPreset,
+} from "./shortcutPreferences";
 import {
   resourceScopeForWorkspace,
   WORKSPACE_ANNOTATION_REQUEST_EVENT,
@@ -39,6 +44,56 @@ export async function checkAnnotationUX(
     const button = document.querySelector<HTMLButtonElement>(selector);
     if (!button) throw new Error(`Missing ${selector}`);
     flushSync(() => button.click());
+  };
+  const pressShortcut = (
+    id: ShortcutId,
+    target: EventTarget = window,
+    repeat = false,
+  ) => {
+    const parts = getShortcutSnapshot().preset.bindings[id][0].split("+");
+    const key = parts[parts.length - 1];
+    flushSync(() =>
+      target.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key,
+          code: key.length === 1 ? `Key${key}` : key,
+          ctrlKey: parts.includes("Ctrl"),
+          altKey: parts.includes("Alt"),
+          metaKey: parts.includes("Meta"),
+          shiftKey: parts.includes("Shift"),
+          bubbles: true,
+          cancelable: true,
+          repeat,
+        }),
+      ),
+    );
+  };
+  const hoverAnnotations = async (inside: boolean) => {
+    const surface =
+      document.querySelector(".annotation-panel") ??
+      document.querySelector(".workspace-surfaces")!;
+    flushSync(() =>
+      surface.dispatchEvent(
+        new PointerEvent(inside ? "pointerover" : "pointerout", {
+          bubbles: true,
+          pointerType: "mouse",
+          relatedTarget: inside ? null : document.body,
+        }),
+      ),
+    );
+    await settle();
+  };
+  const checkAnnotationCount = (count: number) => {
+    const label = document.querySelector(
+      mobile()
+        ? 'button[aria-label="Show review annotations"] .mobile-nav-label'
+        : ".tabbar-utilities button:last-child .tabbar-change-count",
+    );
+    check(
+      label?.textContent?.trim() ===
+        (mobile() ? `Annotations ${count}` : String(count)),
+      "Annotations tab count is stale",
+    );
   };
   const toggleAnnotations = () =>
     click(
@@ -113,6 +168,7 @@ export async function checkAnnotationUX(
   let delivery: ReturnType<typeof Promise.withResolvers<object>> | null = null;
   const sent: Record<string, unknown>[] = [];
   let terminalInputCount = 0;
+  let terminalLifecycleCount = 0;
   const listeners = new Set<(frame: TerminalPush) => void>();
   const previousOnTerminal = bridge.onTerminal;
   const previousFocusPane = store.focusPane;
@@ -150,6 +206,8 @@ export async function checkAnnotationUX(
           entries: [],
         };
       if (method === "terminal.input") terminalInputCount++;
+      if (method === "terminal.attach" || method === "terminal.detach")
+        terminalLifecycleCount++;
       if (method === "terminal.attach" || method === "terminal.resize") {
         cols = Number(params.cols);
         rows = Number(params.rows);
@@ -353,6 +411,66 @@ export async function checkAnnotationUX(
       !document.querySelector(".workspace-inspector"),
       "Inspector should start closed",
     );
+    check(
+      !document.querySelector('button[aria-label="Maximize pane"]'),
+      "single-pane tab must not offer maximize, even with panes in other tabs",
+    );
+    const paneSnapshot = store.get();
+    const replacePaneState = (panes: Pane[], zoomed: boolean) => {
+      __storeTesting.replaceState({
+        ...store.get(),
+        panes,
+        layout: { ...paneSnapshot.layout!, zoomed },
+      });
+      flushSync(() => store.clearNotice());
+    };
+    replacePaneState([pane, { ...otherPane, tab_id: pane.tab_id }], false);
+    check(
+      !!document.querySelector('button[aria-label="Maximize pane"]'),
+      "split tab must offer maximize",
+    );
+    replacePaneState([pane, { ...otherPane, tab_id: pane.tab_id }], true);
+    check(
+      !!document.querySelector('button[aria-label="Restore pane"]'),
+      "zoomed split tab must offer restore even when only one pane is visible",
+    );
+    replacePaneState([pane, otherPane], true);
+    check(
+      !!document.querySelector('button[aria-label="Restore pane"]'),
+      "restore must remain reachable after the last sibling closes",
+    );
+    replacePaneState(paneSnapshot.panes, false);
+    check(
+      !document.querySelector('button[aria-label="Maximize pane"]'),
+      "maximize must disappear when the tab returns to one pane",
+    );
+    for (const title of document.querySelectorAll<HTMLElement>(
+      ".workspace-tree-panel > .panel-head h2, .agents-panel > .panel-head h2",
+    )) {
+      check(getComputedStyle(title).fontSize === "12px", "sidebar title size");
+    }
+    await until(
+      () =>
+        mobile() ||
+        document.querySelector(
+          ".tabbar-utilities button:last-child .tabbar-change-count",
+        )?.textContent === "1",
+      "annotation scope initialization",
+    );
+    checkAnnotationCount(1);
+    if (!mobile()) {
+      check(
+        !document.querySelector(".annotation-panel, .annotation-edge-trigger"),
+        "annotations should start closed without an edge icon",
+      );
+      pressShortcut("sidebar.toggle");
+    }
+    const sidebarStayedHidden = () =>
+      check(
+        mobile() ||
+          document.querySelector(".app")!.classList.contains("sidebar-hidden"),
+        "opening a peer panel revealed the primary sidebar",
+      );
     flushSync(() => {
       requestAnnotation("before-mount-1");
       requestAnnotation("before-mount-2");
@@ -382,8 +500,206 @@ export async function checkAnnotationUX(
         ?.getAttribute("data-view") === "files",
       "Inspector view changed while opening Annotations",
     );
+    sidebarStayedHidden();
+    checkAnnotationCount(3);
+    const originalPreset = getShortcutSnapshot().preferences.active;
+    for (const preset of ["mac", "windows", "linux"]) {
+      flushSync(() => selectShortcutPreset(preset));
+      const inputCount = terminalInputCount;
+      showAnnotations();
+      await until(
+        () => document.querySelector(".xterm-helper-textarea"),
+        "terminal shortcut target",
+      );
+      pressShortcut(
+        "annotations.toggle",
+        document.querySelector<HTMLElement>(".xterm-helper-textarea")!,
+      );
+      check(
+        !document.querySelector(".annotation-panel"),
+        `${preset}: close annotations shortcut`,
+      );
+      pressShortcut("annotations.toggle", window, true);
+      check(
+        !document.querySelector(".annotation-panel"),
+        `${preset}: repeated annotations shortcut`,
+      );
+      pressShortcut("annotations.toggle");
+      check(
+        !!document.querySelector(".annotation-panel"),
+        `${preset}: open annotations shortcut`,
+      );
+      sidebarStayedHidden();
+      const editor = document.querySelector<HTMLElement>(
+        ".annotation-card textarea",
+      )!;
+      pressShortcut("annotations.toggle", editor);
+      check(
+        !!document.querySelector(".annotation-panel"),
+        `${preset}: shortcut interrupted annotation editing`,
+      );
+      pressShortcut("inspector.expand", editor);
+      check(
+        !document.querySelector(".workspace-inspector.is-expanded"),
+        `${preset}: expand interrupted editing`,
+      );
+      pressShortcut("inspector.expand");
+      check(
+        !!document.querySelector(".workspace-inspector.is-expanded") ===
+          !mobile(),
+        `${preset}: expand shortcut`,
+      );
+      if (!mobile()) {
+        pressShortcut("inspector.expand", window, true);
+        check(
+          !!document.querySelector(".workspace-inspector.is-expanded"),
+          `${preset}: repeated expand shortcut`,
+        );
+        pressShortcut("inspector.expand");
+        check(
+          !document.querySelector(".workspace-inspector.is-expanded"),
+          `${preset}: restore shortcut`,
+        );
+      }
+      check(
+        terminalInputCount === inputCount,
+        `${preset}: panel shortcut sent terminal input`,
+      );
+      sidebarStayedHidden();
+    }
+    flushSync(() => selectShortcutPreset(originalPreset));
+    if (!mobile()) {
+      const stage = document.querySelector(".workspace-stage")!;
+      const stageWidth = stage.getBoundingClientRect().width;
+      await settle();
+      paint();
+      await settle();
+      const terminalScreen = document.querySelector(".xterm-screen");
+      const lifecycleCount = terminalLifecycleCount;
+      const checkTerminalPreserved = () =>
+        check(
+          terminalScreen !== null &&
+            terminalScreen === document.querySelector(".xterm-screen") &&
+            terminalLifecycleCount === lifecycleCount,
+          "annotation visibility recreated or reattached the terminal",
+        );
+      click('button[aria-label="Close review feedback"]');
+      await hoverAnnotations(true);
+      check(
+        !document.querySelector(".annotation-panel, .annotation-edge-trigger"),
+        "hover opened annotations or revealed an edge icon",
+      );
+      checkAnnotationCount(3);
+      toggleAnnotations();
+      check(
+        visible(".annotation-panel.is-floating"),
+        "tab did not open floating annotations",
+      );
+      check(
+        stage.getBoundingClientRect().width === stageWidth,
+        "floating annotations resized the stage",
+      );
+      checkTerminalPreserved();
+      for (const theme of ["light", "dark"]) {
+        document.documentElement.dataset.theme = theme;
+        const panel = document
+          .querySelector(".annotation-panel")!
+          .getBoundingClientRect();
+        const surface = document
+          .querySelector(".workspace-surfaces")!
+          .getBoundingClientRect();
+        check(
+          panel.width >= 300 &&
+            panel.right <= surface.right + 1 &&
+            panel.top >= surface.top - 1 &&
+            panel.bottom <= surface.bottom + 1,
+          `${theme}: floating annotations overflow`,
+        );
+      }
+      await hoverAnnotations(false);
+      check(visible(".annotation-panel"), "pointer leave closed annotations");
+      checkTerminalPreserved();
+      checkAnnotationCount(3);
+      await hoverAnnotations(true);
+      const editor = document.querySelector<HTMLTextAreaElement>(
+        ".annotation-card textarea",
+      )!;
+      editor.focus();
+      await hoverAnnotations(false);
+      check(
+        visible(".annotation-panel") && document.activeElement === editor,
+        "pointer leave interrupted editing",
+      );
+      flushSync(() => editor.blur());
+      check(visible(".annotation-panel"), "blur outside closed annotations");
+      toggleAnnotations();
+      check(
+        !document.querySelector(".annotation-panel"),
+        "tab did not close floating annotations",
+      );
+      toggleAnnotations();
+      await hoverAnnotations(true);
+      click('button[aria-label="Agent pane"]');
+      await until(
+        () => document.querySelector('[cmdk-item][data-value="other-pane"]'),
+        "floating target picker",
+      );
+      await hoverAnnotations(false);
+      check(
+        visible(".annotation-panel"),
+        "pointer entering portalled picker collapsed annotations",
+      );
+      click('[cmdk-item][data-value="other-pane"]');
+      await settle();
+      showAnnotations();
+      check(
+        document
+          .querySelector('button[aria-label="Agent pane"]')
+          ?.textContent?.includes("Other agent") === true,
+        "floating target selection was lost",
+      );
+      click('button[aria-label="Agent pane"]');
+      await until(
+        () => document.querySelector('[cmdk-item][data-value="review-pane"]'),
+        "restore floating target picker",
+      );
+      click('[cmdk-item][data-value="review-pane"]');
+      await settle();
+      showAnnotations();
+      click('button[aria-label="Pin annotations"]');
+      check(
+        roamgateLocalStorage.getItem("annotationPanelMode") === "fixed" &&
+          !document.querySelector(".annotation-panel.is-floating"),
+        "pin mode was not saved",
+      );
+      check(
+        document
+          .querySelector(".annotation-panel-footer")!
+          .getBoundingClientRect().bottom <=
+          document.querySelector(".workspace-surfaces")!.getBoundingClientRect()
+            .bottom +
+            1,
+        "fixed annotation footer overflows the workspace",
+      );
+      await hoverAnnotations(true);
+      await hoverAnnotations(false);
+      check(
+        visible(".annotation-panel"),
+        "fixed annotations collapsed on pointer leave",
+      );
+      click('button[aria-label="Float annotations"]');
+      check(
+        stage.getBoundingClientRect().width === stageWidth,
+        "returning to floating mode did not restore stage width",
+      );
+      checkTerminalPreserved();
+      checkAnnotationCount(3);
+      click('button[aria-label="Pin annotations"]');
+      pressShortcut("sidebar.toggle");
+    }
     click('button[aria-label="Delete comment 3"]');
     click('button[aria-label="Delete comment 2"]');
+    checkAnnotationCount(1);
     const setItem = roamgateLocalStorage.setItem;
     try {
       roamgateLocalStorage.setItem = (storageKey, value) => {
@@ -437,6 +753,20 @@ export async function checkAnnotationUX(
       () => !document.querySelector(".annotation-panel"),
       "Annotations did not close before terminal selection",
     );
+    if (!mobile()) {
+      pressShortcut("sidebar.toggle");
+      pressShortcut("inspector.expand");
+      await until(
+        () =>
+          !!document.querySelector(".workspace-inspector.is-expanded") &&
+          document.activeElement?.getAttribute("role") === "tab",
+        "expand shortcut did not open and focus closed Inspector",
+      );
+      sidebarStayedHidden();
+      pressShortcut("inspector.expand");
+      click('button[aria-label="Close Workspace Inspector"]');
+      pressShortcut("sidebar.toggle");
+    }
     // Start the selection fixture with one persisted file comment.
     flushSync(() => root.render(null));
     writeReviewAnnotations(roamgateLocalStorage, key, [file]);
@@ -504,6 +834,12 @@ export async function checkAnnotationUX(
     check(
       document.activeElement?.getAttribute("aria-label") === "Comment 2",
       "new annotation did not receive focus",
+    );
+    checkAnnotationCount(2);
+    check(
+      mobile() ||
+        !!document.querySelector('button[aria-label="Float annotations"]'),
+      "fixed annotation mode did not survive remount",
     );
     check(
       draft()[1]?.source === "terminal" && draft()[1]?.quote === "Selected",
@@ -792,6 +1128,7 @@ export async function checkAnnotationUX(
       draft().length === 0,
       "successful pre-fill did not clear delivered comment",
     );
+    checkAnnotationCount(0);
     const goToAgent = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".annotation-panel button"),
     ).find((button) => button.textContent === "Go to agent");

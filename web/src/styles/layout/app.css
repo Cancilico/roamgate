@@ -837,8 +837,9 @@
   }
 }
 
-/* Annotations are a peer of the terminal/Inspector stage, never its overlay. */
+/* Fixed annotations share the stage; floating annotations overlay it. */
 .workspace-surfaces {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
@@ -885,6 +886,11 @@ html:not([data-layout="mobile"])
 
 .workspace-surfaces.has-annotations > .workspace-stage {
   flex-basis: 560px;
+  height: 100%;
+}
+
+.workspace-surfaces.has-annotations > .annotation-panel {
+  height: 100%;
 }
 
 @container workspace-surfaces (max-width: 900px) {

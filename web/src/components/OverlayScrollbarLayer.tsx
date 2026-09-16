@@ -175,6 +175,7 @@ export function OverlayScrollbarLayer() {
     clearHideTimers();
     hideTimerRef.current = window.setTimeout(() => {
       if (dragRef.current) return;
+      targetRef.current = null;
       setVisible(false);
       clearTimerRef.current = window.setTimeout(() => {
         if (!dragRef.current) setLayout(null);
@@ -186,7 +187,7 @@ export function OverlayScrollbarLayer() {
     let frame = 0;
     let pendingTarget: HTMLElement | null = null;
 
-    // Coalesce scroll and pointer events so geometry is measured at most once per frame.
+    // Measure scroll and drag updates at most once per frame.
     const refresh = (target: HTMLElement) => {
       pendingTarget = target;
       if (frame) return;
@@ -222,26 +223,6 @@ export function OverlayScrollbarLayer() {
       }
       if (hasScrollableOverflow(target)) refresh(target);
     };
-    const onPointerMove = (event: PointerEvent) => {
-      if (dragRef.current) return;
-      const eventTarget =
-        event.target instanceof HTMLElement ? event.target : null;
-      const activeTarget = targetRef.current;
-      if (eventTarget && activeTarget) {
-        const xtermViewport = eventTarget
-          .closest(".xterm")
-          ?.querySelector<HTMLElement>(".xterm-viewport");
-        if (
-          activeTarget.contains(eventTarget) ||
-          activeTarget === xtermViewport
-        ) {
-          refresh(activeTarget);
-          return;
-        }
-      }
-      const target = findScrollableElement(event.target);
-      if (target) refresh(target);
-    };
     const onWheel = (event: WheelEvent) => {
       const target = findScrollableElement(event.target);
       if (target) refresh(target);
@@ -251,7 +232,6 @@ export function OverlayScrollbarLayer() {
     };
 
     document.addEventListener("scroll", onScroll, true);
-    document.addEventListener("pointermove", onPointerMove, true);
     document.addEventListener("wheel", onWheel, {
       capture: true,
       passive: true,
@@ -262,7 +242,6 @@ export function OverlayScrollbarLayer() {
       clearHideTimers();
       refreshRef.current = () => undefined;
       document.removeEventListener("scroll", onScroll, true);
-      document.removeEventListener("pointermove", onPointerMove, true);
       document.removeEventListener("wheel", onWheel, true);
       window.removeEventListener("resize", onResize);
     };

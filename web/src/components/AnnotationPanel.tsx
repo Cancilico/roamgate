@@ -3,6 +3,8 @@ import {
   ArrowUp,
   Clipboard,
   MessageSquareText,
+  Pin,
+  PinOff,
   Send,
   Trash2,
   X,
@@ -39,6 +41,8 @@ function paneLabel(pane: Pane) {
 
 export function AnnotationPanel({
   open,
+  floating,
+  onToggleFloating,
   annotations,
   agentPanes,
   preferredPaneId,
@@ -54,6 +58,8 @@ export function AnnotationPanel({
   onGoToAgent,
 }: {
   open: boolean;
+  floating: boolean;
+  onToggleFloating?: () => void;
   annotations: readonly ReviewAnnotation[];
   agentPanes: readonly Pane[];
   preferredPaneId?: string;
@@ -108,14 +114,30 @@ export function AnnotationPanel({
   if (!open) return null;
 
   return (
-    <aside className="annotation-panel" aria-label="Review annotations">
+    <aside
+      className={`annotation-panel ${floating ? "is-floating" : ""}`}
+      aria-label="Review annotations"
+    >
       <header className="annotation-panel-head">
         <div>
           <strong>Review feedback</strong>
           <span>
-            {annotations.length} comment{annotations.length === 1 ? "" : "s"}
+            {annotations.length} comment
+            {annotations.length === 1 ? "" : "s"}
           </span>
         </div>
+        {onToggleFloating ? (
+          <button
+            type="button"
+            className="annotation-icon-button annotation-mode-button"
+            aria-label={floating ? "Pin annotations" : "Float annotations"}
+            title={floating ? "Fixed layout" : "Floating layout"}
+            aria-pressed={!floating}
+            onClick={onToggleFloating}
+          >
+            {floating ? <Pin size={16} /> : <PinOff size={16} />}
+          </button>
+        ) : null}
         <button
           type="button"
           className="annotation-icon-button"

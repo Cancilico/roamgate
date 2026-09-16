@@ -63,12 +63,14 @@ export function TabBar({
   mobile = false,
   inspectorOpen = false,
   annotationsOpen = false,
+  annotationCount = 0,
   onToggleInspector,
   onToggleAnnotations,
 }: {
   mobile?: boolean;
   inspectorOpen?: boolean;
   annotationsOpen?: boolean;
+  annotationCount?: number;
   onToggleInspector?: () => void;
   onToggleAnnotations?: () => void;
 }) {
@@ -321,11 +323,15 @@ export function TabBar({
               type="button"
               className={annotationsOpen ? "is-active" : ""}
               aria-expanded={annotationsOpen}
-              title={annotationsOpen ? "Close Annotations" : "Open Annotations"}
+              title={shortcutTitle(
+                annotationsOpen ? "Close Annotations" : "Open Annotations",
+                "annotations.toggle",
+              )}
               onClick={onToggleAnnotations}
             >
               <MessageSquareText size={14} />
               <span>Annotations</span>
+              <span className="tabbar-change-count">{annotationCount}</span>
             </button>
           </div>
         </div>

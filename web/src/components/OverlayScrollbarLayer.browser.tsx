@@ -19,10 +19,71 @@ async function run() {
   content.style.cssText = "width:800px;height:1000px";
   scroller.append(content);
   document.body.append(scroller, host);
+  const browserWindow: Window = window;
+  const setTimeout = browserWindow.setTimeout.bind(window);
+  const clearTimeout = browserWindow.clearTimeout.bind(window);
+  const timers = new Map<number, { delay: number; run: () => void }>();
+  let timerId = 0;
+  browserWindow.setTimeout = (handler, delay, ...args) => {
+    if ((delay === 900 || delay === 160) && typeof handler === "function") {
+      const id = --timerId;
+      timers.set(id, { delay, run: () => handler(...args) });
+      return id;
+    }
+    return setTimeout(handler, delay, ...args);
+  };
+  browserWindow.clearTimeout = (id) => {
+    if (id !== undefined && timers.delete(id)) return;
+    clearTimeout(id);
+  };
+  const advance = async (delay: number) => {
+    for (const [id, timer] of [...timers]) {
+      if (timer.delay !== delay) continue;
+      timers.delete(id);
+      timer.run();
+    }
+    await settle();
+  };
+  const movePointer = () =>
+    content.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse" }),
+    );
+  const isVisible = () =>
+    !!host.querySelector(".overlay-scrollbar-layer.is-visible");
   const root = createRoot(host);
   root.render(<OverlayScrollbarLayer />);
   await settle();
   try {
+    movePointer();
+    await settle();
+    check(!isVisible(), "Hover alone must not reveal scrollbars");
+    scroller.scrollTop = 40;
+    scroller.dispatchEvent(new Event("scroll"));
+    await settle();
+    check(isVisible(), "Scrolling must reveal scrollbars");
+    const hideTimer = [...timers.keys()];
+    movePointer();
+    await settle();
+    check(
+      JSON.stringify([...timers.keys()]) === JSON.stringify(hideTimer),
+      "Pointer movement must not extend scrollbar visibility",
+    );
+    await advance(900);
+    check(!isVisible(), "Idle scrollbars must fade out");
+    const thumb = host.querySelector<HTMLElement>(".overlay-scrollbar-thumb");
+    check(
+      !!thumb && getComputedStyle(thumb).pointerEvents === "none",
+      "Hidden thumbs must not intercept pointer events",
+    );
+    window.dispatchEvent(new Event("resize"));
+    movePointer();
+    await settle();
+    check(!isVisible(), "Hover and resizing must not revive idle scrollbars");
+    await advance(160);
+    check(
+      !host.querySelector(".overlay-scrollbar-thumb"),
+      "Idle thumbs must be removed",
+    );
     for (const scale of [1, 0.9, 1.25]) {
       document.documentElement.style.zoom = String(scale);
       for (const width of [300, 400]) {
@@ -103,6 +164,8 @@ async function run() {
     }
   } finally {
     root.unmount();
+    browserWindow.setTimeout = setTimeout;
+    browserWindow.clearTimeout = clearTimeout;
     scroller.remove();
     host.remove();
     document.documentElement.style.zoom = "";

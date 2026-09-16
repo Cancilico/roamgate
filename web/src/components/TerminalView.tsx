@@ -514,6 +514,10 @@ export function TerminalView({
   );
   const isActivePaneRef = useRef(isActivePane);
   const previewWorkspaceIdRef = useRef(pane?.workspace_id);
+  const onOpenWorkspaceFileRef = useRef(onOpenWorkspaceFile);
+  useLayoutEffect(() => {
+    onOpenWorkspaceFileRef.current = onOpenWorkspaceFile;
+  }, [onOpenWorkspaceFile]);
   const paneTerminalIdRef = useRef(pane?.terminal_id);
   const paneIdRef = useRef(pane?.pane_id);
   const paneTabIdRef = useRef(pane?.tab_id);
@@ -706,7 +710,7 @@ export function TerminalView({
         });
         return;
       }
-      onOpenWorkspaceFile?.({
+      onOpenWorkspaceFileRef.current?.({
         connectionId: terminalIdentity.connectionId,
         connectionGeneration: terminalIdentity.generation,
         workspaceId,
@@ -714,7 +718,7 @@ export function TerminalView({
         path,
       });
     },
-    [connectionClient, onOpenWorkspaceFile, terminalIdentity],
+    [connectionClient, terminalIdentity],
   );
 
   const resolveTerminalFilePaths = useCallback(
@@ -2710,16 +2714,18 @@ export function TerminalView({
               </button>
             </>
           ) : null}
-          <button
-            type="button"
-            className="terminal-pane-action"
-            title={paneZoomed ? "Restore pane" : "Maximize pane"}
-            aria-label={paneZoomed ? "Restore pane" : "Maximize pane"}
-            onPointerDown={preventPaneActionFocus}
-            onClick={() => store.zoomPane(pane.pane_id)}
-          >
-            {paneZoomed ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
+          {canClosePane || paneZoomed ? (
+            <button
+              type="button"
+              className="terminal-pane-action"
+              title={paneZoomed ? "Restore pane" : "Maximize pane"}
+              aria-label={paneZoomed ? "Restore pane" : "Maximize pane"}
+              onPointerDown={preventPaneActionFocus}
+              onClick={() => store.zoomPane(pane.pane_id)}
+            >
+              {paneZoomed ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+          ) : null}
           {canClosePane ? (
             <button
               type="button"

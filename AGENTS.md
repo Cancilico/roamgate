@@ -82,9 +82,11 @@ and inspect every supported platform archive and checksum.
 
 Git history uses concise imperative messages, for example `Use built-in CLI
 argument parser` or `Add command palette and release 0.0.3`. Keep commits
-focused and mention user-visible behavior in the message when relevant. PRs
-should include a short summary, verification commands, and screenshots for UI
-changes.
+focused and mention user-visible behavior in the message when relevant. PR
+descriptions should include a short summary and verification commands. For UI
+changes, upload screenshots as GitHub attachments and embed them in the PR
+description. Do not commit screenshot files to the repository solely for PR
+review.
 
 ## Release Notes
 

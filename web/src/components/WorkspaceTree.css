@@ -12,6 +12,11 @@
   overflow: hidden;
 }
 
+.workspace-tree-panel > .panel-head h2,
+.agents-panel > .panel-head h2 {
+  font-size: 12px;
+}
+
 .workspace-tree-panel:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
