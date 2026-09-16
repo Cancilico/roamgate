@@ -8,6 +8,8 @@ const descriptions: [ShortcutId, string, string][] = [
   ["command.menu", "Open or close the command menu", "Global"],
   ["sidebar.toggle", "Toggle the desktop sidebar", "Global"],
   ["inspector.toggle", "Toggle the Workspace Inspector", "Global"],
+  ["inspector.expand", "Expand or restore the Inspector on desktop", "Global"],
+  ["annotations.toggle", "Toggle Annotations", "Global"],
   ["zen.toggle", "Toggle Zen mode on desktop", "Global"],
   ["panes.recent", "Open the recent pane switcher", "Global"],
   ["workspaces.open", "Open Workspaces", "Global"],

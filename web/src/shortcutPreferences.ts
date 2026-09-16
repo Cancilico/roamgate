@@ -36,6 +36,8 @@ const LATE_SHORTCUT_IDS: ShortcutId[] = [
   "terminal.copy",
   "zen.toggle",
   "pane.zoom",
+  "inspector.expand",
+  "annotations.toggle",
 ];
 export function validateShortcutPreset(value: unknown): ShortcutPreset {
   if (!value || typeof value !== "object")

@@ -74,7 +74,8 @@ macOS preset; see [other platform bindings](#keyboard-shortcuts).
 
 Open Files, Changes, or Agent History with the TabBar Inspector button,
 `Cmd+Shift+B` on macOS, or workspace/agent context menus. The header identifies repository,
-branch/worktree, and checkout path.
+branch/worktree, and checkout path. Inspector and Annotations leave the primary
+sidebar's visibility unchanged.
 
 - Dock right/bottom, resize, or expand without unmounting the terminal. Header
   controls restore/close; Esc dismisses transient UI, not the Inspector.
@@ -239,8 +240,15 @@ File operations and previews work locally and over SSH.
 
 - Open **Annotations** independently next to **Inspector** in the workspace bar (or
   the narrow-screen view switcher). The panel stays available when Inspector is
-  closed and opening it does not change Inspector's view. Desktop drafts dock
-  beside or below the workspace; mobile uses an explicit Annotations surface.
+  closed and opening it does not change Inspector's view. The tab shows the
+  current checkout's comment count, including saved drafts. Use the tab or
+  Annotations shortcut to toggle the panel, or its close button to dismiss it.
+- Desktop annotations float over the workspace by default.
+  **Pin annotations** switches to a fixed layout beside or below the workspace;
+  **Float annotations** restores the overlay. The choice stays in this browser.
+  Mobile uses an explicit Annotations surface with touch controls.
+  See the [floating](docs/screenshots/annotations-floating.png) and
+  [fixed](docs/screenshots/annotations-fixed.png) desktop layouts.
 - Click/drag diff line numbers or source annotation gutters to comment on lines;
   release opens the editor with file, range, and content snapshot.
 - Select rendered Markdown passages to capture their text and nearest heading.
@@ -357,6 +365,8 @@ Common defaults (Linux/Android overrides follow the table):
 | Command menu | `Cmd+K` | `Ctrl+Alt+K` |
 | Sidebar | `Cmd+B` | `Ctrl+Alt+B` |
 | Workspace Inspector | `Cmd+Shift+B` | `Ctrl+Alt+Shift+B` |
+| Expand / restore Inspector (desktop) | `Cmd+Option+Enter` | `Ctrl+Alt+Shift+Enter` |
+| Annotations | `Cmd+Option+A` | `Ctrl+Alt+A` |
 | Zen mode (desktop) | `Cmd+Shift+Z` | `Ctrl+Alt+Z` |
 | Recent pane switcher | `Ctrl+Tab` | `Ctrl+Alt+J` |
 | Create / close tab or pane | `Cmd+T` / `Cmd+W` | `Ctrl+Alt+T` / `Ctrl+Alt+W` |

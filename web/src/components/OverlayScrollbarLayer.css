@@ -14,7 +14,7 @@
   background: var(--overlay-scrollbar-thumb);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 32%, transparent);
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   touch-action: none;
   transition:
     opacity 160ms ease,
@@ -23,6 +23,7 @@
 
 .overlay-scrollbar-layer.is-visible .overlay-scrollbar-thumb {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .overlay-scrollbar-thumb:hover,

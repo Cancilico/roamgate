@@ -1,3 +1,12 @@
+.annotation-panel.is-floating {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 100%);
+}
+
 .annotation-panel {
   flex: 0 0 clamp(300px, 30%, 380px);
   min-width: 0;
@@ -24,6 +33,7 @@
 }
 
 .annotation-panel-head > div {
+  flex: 1;
   min-width: 0;
   display: grid;
   gap: 1px;

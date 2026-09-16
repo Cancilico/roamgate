@@ -308,6 +308,31 @@ describe("shortcut preset persistence and exchange", () => {
   });
 });
 
+test("older presets gain panel shortcuts without replacing saved assignments", () => {
+  for (const base of ["mac", "windows", "linux"] as const) {
+    const previous = {
+      ...preset(),
+      base,
+      bindings: defaultShortcutBindings(base),
+    };
+    const bindings: Partial<typeof previous.bindings> = {
+      ...previous.bindings,
+    };
+    delete bindings["inspector.expand"];
+    delete bindings["annotations.toggle"];
+    const loaded = validateShortcutPreset({ ...previous, bindings });
+    expect(loaded.bindings).toEqual(previous.bindings);
+
+    bindings["tab.create"] = previous.bindings["inspector.expand"];
+    bindings["tab.close"] = previous.bindings["annotations.toggle"];
+    const taken = validateShortcutPreset({ ...previous, bindings });
+    expect(taken.bindings["tab.create"]).toEqual(bindings["tab.create"]!);
+    expect(taken.bindings["tab.close"]).toEqual(bindings["tab.close"]!);
+    expect(taken.bindings["inspector.expand"]).toEqual([]);
+    expect(taken.bindings["annotations.toggle"]).toEqual([]);
+  }
+});
+
 describe("terminal copy shortcuts", () => {
   test("copies with platform bindings without taking over Ctrl+C", () => {
     for (const platform of ["windows", "linux", "mac"] as const) {

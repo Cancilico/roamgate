@@ -29,6 +29,7 @@ import {
   type ReviewAnnotation,
 } from "../annotations";
 import { lazyWithReload } from "../lazyWithReload";
+import { shortcutTitle, useShortcutPreferences } from "../shortcutPreferences";
 import type { GitDiffEntry, Pane, Workspace } from "../types";
 import {
   DEFAULT_INSPECTOR_NAVIGATION_RATIO,
@@ -282,6 +283,7 @@ export function WorkspaceInspectorHost({
   const [navigationPreferences, setNavigationPreferences] = useState(() =>
     readInspectorPreferences(roamgateLocalStorage, state.scope),
   );
+  useShortcutPreferences();
   const defaultNavigationRatio = state.expanded
     ? inspectorNavigationRatioAtPosition(
         300,
@@ -530,9 +532,10 @@ export function WorkspaceInspectorHost({
           <button
             type="button"
             className="workspace-inspector-expand-action"
-            title={
-              state.expanded ? "Restore Inspector dock" : "Expand Inspector"
-            }
+            title={shortcutTitle(
+              state.expanded ? "Restore Inspector dock" : "Expand Inspector",
+              "inspector.expand",
+            )}
             aria-label={
               state.expanded ? "Restore Inspector dock" : "Expand Inspector"
             }

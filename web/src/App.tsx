@@ -1186,6 +1186,26 @@ export default function App() {
     update: updateAnnotationDraft,
   } = useReviewAnnotationDraft(resourceUiKey);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotationsFloating, setAnnotationsFloating] = useState(
+    () => roamgateLocalStorage.getItem("annotationPanelMode") !== "fixed",
+  );
+  const annotationsDocked = annotationsOpen && (mobile || !annotationsFloating);
+  const toggleAnnotationsFloating = () => {
+    const next = !annotationsFloating;
+    setAnnotationsFloating(next);
+    try {
+      roamgateLocalStorage.setItem(
+        "annotationPanelMode",
+        next ? "floating" : "fixed",
+      );
+    } catch {
+      store.notify({
+        kind: "error",
+        message: "Annotation layout could not be saved",
+        detail: "The layout applies until this page reloads.",
+      });
+    }
+  };
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(
     null,
   );
@@ -1569,7 +1589,6 @@ export default function App() {
         : null;
       commitInspectorState(nextState);
       writeInspectorPreferences(roamgateLocalStorage, nextState);
-      setSidebarHidden(false);
       if (mobile) setMobileView(view);
       if (focusInspector) requestAnimationFrame(finishInspectorFocus);
 
@@ -1624,7 +1643,6 @@ export default function App() {
       setAnnotationDraftScope(scope, true, preferredPaneId);
       annotationAwaitingFocusRef.current = workspace.focused ? null : scope;
       if (!workspace.focused) void store.focusWorkspace(workspace.workspace_id);
-      setSidebarHidden(false);
       if (mobile) setMobileView("annotations");
     },
     [connectionClient.connectionId, mobile, setAnnotationDraftScope],
@@ -1933,6 +1951,18 @@ export default function App() {
       originPaneId: view === "history" ? historyPane?.pane_id : undefined,
     });
   }, [closeInspector, connectionClient.connectionId, openInspector]);
+  const setInspectorExpanded = useCallback(
+    (expanded: boolean) => {
+      const current = inspectorStateRef.current;
+      if (!current) return;
+      const next = { ...current, expanded };
+      if (inspectorFocusRequestRef.current?.state === current)
+        inspectorFocusRequestRef.current.state = next;
+      commitInspectorState(next);
+      writeInspectorPreferences(roamgateLocalStorage, next);
+    },
+    [commitInspectorState],
+  );
   const keepInspectorForWorkspace = useCallback(
     (workspaceId: string, originPane?: Pane) => {
       const current = inspectorStateRef.current;
@@ -2233,7 +2263,6 @@ export default function App() {
       setFocusedAnnotationId(annotation.id);
       annotationAwaitingFocusRef.current = workspace.focused ? null : scope;
       if (!workspace.focused) void store.focusWorkspace(workspace.workspace_id);
-      setSidebarHidden(false);
       if (mobile) setMobileView("annotations");
     };
     window.addEventListener(
@@ -2763,6 +2792,23 @@ export default function App() {
         toggleWorkspaceInspector();
         return;
       }
+      if (shortcutMatches(e, "inspector.expand")) {
+        if (mobile || isEditableElement(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.repeat) return;
+        const current = inspectorStateRef.current;
+        if (!current?.open) toggleWorkspaceInspector();
+        setInspectorExpanded(!current?.open || !current.expanded);
+        return;
+      }
+      if (shortcutMatches(e, "annotations.toggle")) {
+        if (isEditableElement(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.repeat) toggleAnnotations();
+        return;
+      }
       const fileExplorerShortcut = shortcutMatches(e, "files.toggle");
       if (fileExplorerShortcut) {
         if (isEditableElement(e.target)) return;
@@ -2823,10 +2869,13 @@ export default function App() {
     commitPaneJump,
     defaultPaneJumpIndex,
     movePaneJumpSelection,
+    mobile,
     openWorkspaces,
     paneJumpOpen,
     paneJumpOptions.length,
     selectPaneJumpIndex,
+    setInspectorExpanded,
+    toggleAnnotations,
     toggleDiffViewer,
     toggleFileExplorer,
     toggleSidebar,
@@ -2983,13 +3032,6 @@ export default function App() {
     commitInspectorState(next);
     writeInspectorPreferences(roamgateLocalStorage, next);
   };
-  const setInspectorExpanded = (expanded: boolean) => {
-    const current = inspectorStateRef.current;
-    if (!current) return;
-    const next = { ...current, expanded };
-    commitInspectorState(next);
-    writeInspectorPreferences(roamgateLocalStorage, next);
-  };
   const clearInspectorDetail = () => {
     const current = inspectorStateRef.current;
     if (current?.view === "files") {
@@ -3012,12 +3054,12 @@ export default function App() {
     const bounds = stage.getBoundingClientRect();
     const minimum =
       (current.dock === "right" ? INSPECTOR_MIN_RIGHT : INSPECTOR_MIN_BOTTOM) /
-      (annotationsOpen ? 2 : 1);
+      (annotationsDocked ? 2 : 1);
     const maximum = inspectorMaximumSize(
       current.dock,
       bounds.width,
       bounds.height,
-      annotationsOpen,
+      annotationsDocked,
     );
     const next = {
       ...current,
@@ -3046,7 +3088,7 @@ export default function App() {
       dock,
       bounds.width,
       bounds.height,
-      annotationsOpen,
+      annotationsDocked,
     );
     const startSize = Math.min(current.size, maxSize);
     let finalSize = startSize;
@@ -3055,7 +3097,7 @@ export default function App() {
         maxSize,
         Math.max(
           (dock === "right" ? INSPECTOR_MIN_RIGHT : INSPECTOR_MIN_BOTTOM) /
-            (annotationsOpen ? 2 : 1),
+            (annotationsDocked ? 2 : 1),
           startSize +
             (dock === "right"
               ? startX - event.clientX
@@ -3205,14 +3247,16 @@ export default function App() {
         <button
           type="button"
           className={mobileView === "annotations" ? "active" : ""}
-          title="Annotations"
+          title={shortcutTitle("Annotations", "annotations.toggle")}
           aria-label="Show review annotations"
           aria-pressed={annotationsOpen}
           tabIndex={mobileControlsCollapsed ? -1 : 0}
           onClick={toggleAnnotations}
         >
           <MessageSquareText size={16} />
-          <span className="mobile-nav-label">Annotations</span>
+          <span className="mobile-nav-label">
+            Annotations {annotations.length}
+          </span>
         </button>
         <button
           type="button"
@@ -3484,11 +3528,12 @@ export default function App() {
             mobile={mobile}
             inspectorOpen={inspectorState?.open === true}
             annotationsOpen={annotationsOpen}
+            annotationCount={annotations.length}
             onToggleInspector={toggleWorkspaceInspector}
             onToggleAnnotations={toggleAnnotations}
           />
           <div
-            className={`workspace-surfaces ${annotationsOpen ? "has-annotations" : ""}`}
+            className={`workspace-surfaces ${annotationsDocked ? "has-annotations" : ""}`}
           >
             <div
               ref={inspectorStageRef}
@@ -3615,6 +3660,8 @@ export default function App() {
               key={annotationStorageKey}
               open={annotationsOpen && !!annotationScope}
               annotations={annotations}
+              floating={annotationsFloating && !mobile && !!annotationScope}
+              onToggleFloating={mobile ? undefined : toggleAnnotationsFloating}
               agentPanes={annotationAgentPanes}
               preferredPaneId={annotationPreferredPaneId}
               busy={annotationDeliveryBusy}
