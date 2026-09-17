@@ -139,8 +139,11 @@ function surfaceFrame(
       pane.maxOffset,
       pane.hasScroll,
     );
-  w.varint(0);
-  w.bool(false);
+  w.varint(0); // splits
+  w.bool(false); // popup
+  w.varint(0); // graphics assets
+  w.varint(0); // graphics placements
+  w.varint(0); // retained assets
   return w.toBuffer();
 }
 
@@ -168,6 +171,7 @@ const WELCOME = {
  * endpoint requests, and streams a two-pane surface.
  */
 async function startSessionServer(handlers: {
+  onHello?: (hello: any) => void;
   onRequest?: (method: string, params: any, connection: number) => unknown;
   methods?: string[] | ((connection: number) => string[]);
   capabilities?: (connection: number) => string[];
@@ -179,6 +183,7 @@ async function startSessionServer(handlers: {
   ) => void;
   onClipboardConnection?: (send: (data: string) => void) => void;
   onDisconnectConnection?: (disconnect: () => void) => void;
+  onControlConnection?: (send: (kind: string, data: string) => void) => void;
   initialSurface?: { frame: FrameData; panes: TestPane[] };
   surfaceForHello?: (
     cols: number,
@@ -211,6 +216,9 @@ async function startSessionServer(handlers: {
     });
     const connection = ++connectionSeq;
     handlers.onDisconnectConnection?.(() => socket.destroy());
+    handlers.onControlConnection?.((kind, data) =>
+      socket.write(encodeFrame(controlFrame(kind, data))),
+    );
     handlers.onClipboardConnection?.((data) => {
       const w = new BinWriter();
       w.variant(5);
@@ -265,6 +273,7 @@ async function startSessionServer(handlers: {
           greeted = true;
           reader.string(); // kind
           const hello = JSON.parse(reader.string());
+          handlers.onHello?.(hello);
           const initialSurface =
             handlers.surfaceForHello?.(
               hello.surface_size.cols,
@@ -1591,6 +1600,276 @@ async function settleUntil(predicate: () => boolean) {
   for (let i = 0; i < 200 && !predicate(); i++) await Bun.sleep(5);
   expect(predicate()).toBe(true);
 }
+
+test.each(["endpoint.surface-delta.v1", "endpoint.surface-reuse.v1"])(
+  "invalid %s notifies only its viewers and reattachment obtains a fresh frame",
+  async (kind) => {
+    const peers: Array<(kind: string, data: string) => void> = [];
+    const socketPath = await startSessionServer({
+      capabilities: () => ["surface_delta", "surface_reuse"],
+      onControlConnection: (send) => peers.push(send),
+    });
+    const { bridge, ws, replies } = creationBridge(socketPath);
+    const other = {} as ServerWebSocket<unknown>;
+    try {
+      await bridge.handleTerminalRpc(ws, "attach-a", "terminal.attach", {
+        terminal_id: "a",
+        cols: 8,
+        rows: 3,
+      });
+      await bridge.handleTerminalRpc(other, "attach-b", "terminal.attach", {
+        terminal_id: "b",
+        cols: 8,
+        rows: 3,
+      });
+      const before = replies.filter(
+        (r) => r.terminal?.terminal_id === "a",
+      ).length;
+      peers[0](kind, "invalid");
+      await settleUntil(() => replies.some((r) => r.terminal_closed));
+      expect(
+        replies
+          .filter((r) => r.terminal_closed)
+          .map((r) => r.terminal_closed.terminal_id),
+      ).toEqual(["a"]);
+      expect(bridge.statusTerminals().map((t) => t.terminal_id)).toEqual(["b"]);
+      await bridge.handleTerminalRpc(ws, "reattach-a", "terminal.attach", {
+        terminal_id: "a",
+        cols: 8,
+        rows: 3,
+      });
+      expect(peers).toHaveLength(3);
+      expect(
+        replies.filter((r) => r.terminal?.terminal_id === "a").length,
+      ).toBeGreaterThan(before);
+      expect(replies.find((r) => r.id === "reattach-a")?.result.ok).toBe(true);
+      expect(replies.filter((r) => r.error)).toEqual([]);
+    } finally {
+      bridge.dispose();
+    }
+  },
+);
+
+test("changing surface codecs reconnects every endpoint viewer, but not other connections", async () => {
+  const hellos: any[] = [];
+  const requests: string[] = [];
+  const socketPath = await startSessionServer({
+    onHello: (hello) => hellos.push(hello),
+    onRequest: (method) => {
+      requests.push(method);
+    },
+  });
+  const viewers = [{}, {}, {}] as ServerWebSocket<unknown>[];
+  const messages: { viewer: unknown; message: any }[] = [];
+  let enabled = true;
+  const bridge = createTerminalBridge({
+    clientSocketPath: socketPath,
+    connectionId: "alpha",
+    connectionGeneration: 1,
+    herdrProtocol: async () => 22,
+    surfaceCodecsEnabled: async () => enabled,
+    lookupPaneId: async () => "w1:p1",
+    clientLabel: () => "test",
+    markRpcError: () => {},
+    safeSend: (viewer, payload) => {
+      messages.push({ viewer, message: JSON.parse(payload) });
+      return true;
+    },
+  });
+  const unaffected = creationBridge(socketPath);
+  const attach = (index: number) =>
+    bridge.handleTerminalRpc(
+      viewers[index],
+      `attach-${index}`,
+      "terminal.attach",
+      {
+        terminal_id: index === 2 ? "other-pane" : "same-pane",
+        cols: 8,
+        rows: 3,
+      },
+    );
+  try {
+    await unaffected.attach();
+    for (let i = 0; i < 3; i++) await attach(i);
+    expect(hellos).toHaveLength(3);
+    for (const next of [false, true]) {
+      messages.length = 0;
+      enabled = next;
+      bridge.refreshSurfaceCodecs();
+      await settleUntil(
+        () =>
+          messages.filter(({ message }) => message.terminal_closed).length ===
+          3,
+      );
+      expect(
+        messages
+          .filter(({ message }) => message.terminal_closed)
+          .map(({ viewer }) =>
+            viewers.indexOf(viewer as ServerWebSocket<unknown>),
+          )
+          .sort(),
+      ).toEqual([0, 1, 2]);
+      for (const { message } of messages.filter(
+        ({ message }) => message.terminal_closed,
+      )) {
+        expect(message.terminal_closed.reason).toBe(
+          "terminal_configuration_changed",
+        );
+        expect(message.connection_id).toBe("alpha");
+      }
+      expect(unaffected.bridge.statusTerminals()).toHaveLength(1);
+      expect(unaffected.replies.some((reply) => reply.terminal_closed)).toBe(
+        false,
+      );
+      for (let i = 0; i < 3; i++) await attach(i);
+      expect(
+        hellos
+          .slice(-2)
+          .map((hello) => [hello.surface_delta, hello.surface_reuse]),
+      ).toEqual([
+        [next, next],
+        [next, next],
+      ]);
+      expect(bridge.statusTerminals()).toHaveLength(2);
+      expect(messages.some(({ message }) => message.terminal?.full)).toBe(true);
+      expect(messages.filter(({ message }) => message.error)).toEqual([]);
+    }
+    expect(requests.some((method) => /kill|destroy|close/.test(method))).toBe(
+      false,
+    );
+  } finally {
+    bridge.dispose();
+    unaffected.bridge.dispose();
+  }
+});
+
+test("configuration refresh during handshake still notifies the viewer to retry", async () => {
+  const socketPath = path.join(
+    tmpdir(),
+    `herdr-gui-handshake-${crypto.randomUUID()}.sock`,
+  );
+  const hello = deferred<void>();
+  const closed = deferred<void>();
+  const server = net.createServer((socket) => {
+    socket.once("data", () => hello.resolve());
+    socket.once("close", () => closed.resolve());
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+  const { bridge, ws, replies } = creationBridge(socketPath);
+  const attaching = bridge.handleTerminalRpc(ws, "attach", "terminal.attach", {
+    terminal_id: "term",
+    cols: 8,
+    rows: 3,
+  });
+  try {
+    await hello.promise;
+    bridge.refreshSurfaceCodecs();
+    await Promise.all([attaching, closed.promise]);
+    expect(
+      replies
+        .filter((reply) => reply.terminal_closed)
+        .map((reply) => reply.terminal_closed),
+    ).toEqual([
+      { terminal_id: "term", reason: "terminal_configuration_changed" },
+    ]);
+  } finally {
+    bridge.dispose();
+    await attaching;
+  }
+});
+
+test.each([false, true])(
+  "configuration reattachment survives obsolete lookup failure (different viewer: %s)",
+  async (differentViewer) => {
+    const lookup = deferred<string>();
+    let lookups = 0;
+    const inputs: string[] = [];
+    const senders: Array<(panes: TestPane[]) => void> = [];
+    const socketPath = await startSessionServer({
+      onConnection: (send) => senders.push(send),
+      onPaneInput: (id) => inputs.push(id),
+    });
+    const { bridge, ws, replies } = creationBridge(socketPath, {
+      lookup: async () => (++lookups === 1 ? lookup.promise : "w1:p1"),
+    });
+    const replacementViewer = differentViewer
+      ? ({} as ServerWebSocket<unknown>)
+      : ws;
+    const attach = (viewer: ServerWebSocket<unknown>, id: string) =>
+      bridge.handleTerminalRpc(viewer, id, "terminal.attach", {
+        terminal_id: "term",
+        cols: 8,
+        rows: 3,
+      });
+    const prior = attach(ws, "prior");
+    try {
+      await settleUntil(() => lookups === 1);
+      bridge.refreshSurfaceCodecs();
+      await settleUntil(() => replies.some((r) => r.terminal_closed));
+      await attach(replacementViewer, "replacement");
+      expect(replies.find((r) => r.id === "replacement")?.result.ok).toBe(true);
+      lookup.resolve("w1:p1");
+      await prior;
+      expect(replies.find((r) => r.id === "prior")?.error).toBeDefined();
+      expect(bridge.statusTerminals()).toHaveLength(1);
+      const frames = replies.filter((r) => r.terminal).length;
+      senders[1]([{ paneId: "w1:p1", x: 0, mouseReporting: true }]);
+      await settleUntil(
+        () => replies.filter((r) => r.terminal).length > frames,
+      );
+      await bridge.handleTerminalRpc(
+        replacementViewer,
+        "input",
+        "terminal.input",
+        { terminal_id: "term", data: "eA==" },
+      );
+      await settleUntil(() => inputs.length === 1);
+      expect(replies.find((r) => r.id === "input")?.error).toBeUndefined();
+      expect(replies.filter((r) => r.terminal_closed)).toHaveLength(1);
+    } finally {
+      lookup.resolve("w1:p1");
+      await prior;
+      bridge.dispose();
+    }
+  },
+);
+
+test("an attach waiting for settings cannot negotiate an obsolete codec preference", async () => {
+  const hellos: any[] = [];
+  const socketPath = await startSessionServer({
+    onHello: (hello) => hellos.push(hello),
+  });
+  const oldSettings = deferred<boolean>();
+  let reads = 0;
+  const bridge = createTerminalBridge({
+    clientSocketPath: socketPath,
+    herdrProtocol: async () => 22,
+    surfaceCodecsEnabled: () =>
+      ++reads === 1 ? oldSettings.promise : Promise.resolve(true),
+    lookupPaneId: async () => "w1:p1",
+    clientLabel: () => "test",
+    markRpcError: () => {},
+    safeSend: () => true,
+  });
+  try {
+    const attaching = bridge.handleTerminalRpc(
+      {} as ServerWebSocket<unknown>,
+      "attach",
+      "terminal.attach",
+      { terminal_id: "pane", cols: 8, rows: 3 },
+    );
+    await settleUntil(() => reads === 1);
+    bridge.refreshSurfaceCodecs();
+    oldSettings.resolve(false);
+    await attaching;
+    expect(reads).toBe(2);
+    expect(hellos.map((hello) => hello.surface_delta)).toEqual([true]);
+  } finally {
+    oldSettings.resolve(false);
+    bridge.dispose();
+  }
+});
 
 function creationBridge(
   socketPath: string,

@@ -197,8 +197,8 @@ unsandboxed code:** review `paseo.json` before creating, opening, or removing.
 
 Fetch `origin/main` and merge into enabled checkouts' current branches every
 10 minutes by default. The UI shows interval and last result. Manage saved
-per-checkout settings in **Menu → Automatic branch updates**, workspace context
-menus, or Worktree Lifecycle.
+per-checkout settings in **Menu → Configuration → Connection → Automatic branch
+updates**, workspace context menus, or Worktree Lifecycle.
 
 Runs skip dirty or detached checkouts, verify branch/HEAD/worktree stayed unchanged
 during fetch, and abort conflicting merges. Updates run only while the workspace
@@ -291,7 +291,7 @@ newer work.
 ## Mobile and PWA
 
 - Responsive terminals, Inspector, and viewport/keyboard handling. **Menu →
-  Appearance → Layout → Display mode** offers Automatic/Mobile/Desktop.
+  Configuration → Appearance → Layout → Display mode** offers Automatic/Mobile/Desktop.
   Automatic uses **Mobile up to (px)**: 768 by default, adjustable 320–2560 CSS
   pixels. Mobile stays mobile at any width, including after reload.
 - URL overrides `?layout=mobile`, `?layout=desktop`, or `?layout=auto` beat saved
@@ -311,7 +311,7 @@ newer work.
   Legacy incremental streams resume automatically at a 1 MiB buffered UTF-16
   payload limit without discarding output or a captured comment.
 - Configure the floating terminal panel's `2×8` shortcut grid and up to four
-  side buttons. Empty editor slots keep their positions but compact at runtime.
+  side buttons in **Menu → Configuration → Behavior → Mobile terminal shortcuts**. Empty editor slots keep their positions but compact at runtime.
   Actions include Ctrl, arrows, Enter variants, full/half-page scrolling, and
   Paste (text or uploaded clipboard-image paths).
 - Switch split panes or use the Tabs sheet to create/switch/close tabs when the
@@ -335,7 +335,8 @@ Mobile shortcuts and appearance stay in this browser, not Herdr configuration.
 - Remote file/image-paste/Git/hook operations run on the same host; session
   inspection has the metadata limits described above.
 - Multiple browsers receive pushed events. Pause/resume yours, see client counts,
-  or pause others. **Task notifications** offer independent **Agent needs input**
+  or pause others. **Menu → Configuration → Behavior → Task notifications**
+  offers independent **Agent needs input**
   and **Task completed** switches. [Web Push](docs/DEPLOYMENT.md#web-push-notifications)
   is enabled on the server by default; each subscribed device receives events
   from connected Herdr runtimes even when its page is suspended or closed,
@@ -348,10 +349,16 @@ Mobile shortcuts and appearance stay in this browser, not Herdr configuration.
   Web Push use **Active page only** notifications; background delivery is labeled
   **Background push**. Subscription or revocation failures show a retryable error.
 - Choose light/dark/system appearance, persistent accents, and terminal themes
-  per appearance mode in **Menu → Appearance → Terminal theme**. Built-ins
+  per appearance mode in **Menu → Configuration → Appearance → Terminal theme**. Built-ins
   include Solarized, Dracula, One Dark, Nord, Tokyo Night, Catppuccin, and GitHub;
   custom themes set base/ANSI colors. Themes apply live to all terminals and save
   per browser. **Text size** scales the UI from 80% to 150%, including mobile.
+- **Menu → Configuration → Connection → Terminal incremental transport** enables
+  Herdr delta/reuse frames by default when supported. This reduces Herdr-to-Roamgate
+  traffic, not browser repaint traffic. The preference is saved on the Roamgate
+  server per connection and shared by its viewers. Changing it briefly reconnects
+  their terminal displays without stopping tasks; older Herdr servers retain
+  their existing transport.
 - Manage a user service from the CLI; check releases and run checksum-verified
   one-click standalone updates under a supported supervisor. Probe `/health` or
   `/healthz`. See [services](docs/DEPLOYMENT.md#run-as-a-user-service).
@@ -362,7 +369,7 @@ multi-user authorization, or sandboxing; read [SECURITY.md](./SECURITY.md).
 
 ## Keyboard Shortcuts
 
-Open **Menu → Behavior & automation → Keyboard shortcuts** for the searchable
+Open **Menu → Configuration → Behavior → Keyboard shortcuts** for the searchable
 list and preset editor on desktop/mobile. Lists and hints show active bindings.
 See the [desktop](docs/screenshots/keyboard-shortcuts-desktop.png) and
 [mobile](docs/screenshots/keyboard-shortcuts-mobile.png) editors.

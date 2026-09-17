@@ -67,9 +67,10 @@ export class EndpointTerminalSession extends EventEmitter {
     private lookupPaneId: (terminalId: string) => Promise<string | null>,
     private logger: Logger = silentLogger,
     private firstSurfaceWaitMs = FIRST_SURFACE_WAIT_MS,
+    surfaceCodecsEnabled = true,
   ) {
     super();
-    this.client = new EndpointClient(socketPath);
+    this.client = new EndpointClient(socketPath, surfaceCodecsEnabled);
     this.client.on("surface", (s) => this.onSurface(s));
     this.client.on("clipboard", (clipboard) => {
       if (!this.closed && this.paneId) this.emit("clipboard", clipboard);

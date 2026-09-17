@@ -33,6 +33,8 @@ test("explicit half-page history retains legacy Wheel source and line count", as
       rows: 30,
       relay_active: false,
     });
+    bridge.refreshSurfaceCodecs();
+    expect(bridge.statusTerminals()).toHaveLength(1);
     await bridge.handleTerminalRpc(ws, "scroll", "terminal.scroll", {
       terminal_id: "legacy",
       direction: "up",

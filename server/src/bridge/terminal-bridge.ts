@@ -62,6 +62,7 @@ export function createTerminalBridge(args: {
   herdrProtocol: () => Promise<number>;
   /** Resolve a terminal id to its owning pane id (control-socket pane.list). */
   lookupPaneId?: (terminalId: string) => Promise<string | null>;
+  surfaceCodecsEnabled?: () => Promise<boolean>;
   validateCreationSource?: (source: EndpointCreationSource) => Promise<void>;
   createEmptyWorkspace?: (
     params: Record<string, unknown>,
@@ -109,6 +110,7 @@ export function createTerminalBridge(args: {
   // undeliverable, so repeated checks neither reconnect nor re-log.
   let clipboardRelaySkipped = false;
   let lifecycleRevision = 0;
+  let surfaceSettingsRevision = 0;
   let disposed = false;
   // Resolved once per bridge: the protocol is fixed for the server process,
   // and a restart recreates this bridge.
@@ -438,6 +440,7 @@ export function createTerminalBridge(args: {
   function detachTerminalViewer(
     ws: ServerWebSocket<unknown>,
     terminalId?: string | null,
+    expectedSession?: SharedTerminalSession | null,
   ) {
     const current = terminals.get(ws);
     const viewed = terminalViewers.get(ws);
@@ -452,10 +455,15 @@ export function createTerminalBridge(args: {
         clipboardTarget = null;
       }
       const shared = sharedTerminals.get(id);
-      shared?.viewers.delete(ws);
-      if (shared && shared.viewers.size === 0) {
-        shared.thin.close();
-        sharedTerminals.delete(id);
+      if (
+        shared &&
+        (expectedSession === undefined || shared === expectedSession)
+      ) {
+        shared.viewers.delete(ws);
+        if (shared.viewers.size === 0) {
+          shared.thin.close();
+          if (sharedTerminals.get(id) === shared) sharedTerminals.delete(id);
+        }
       }
       viewed?.delete(id);
     }
@@ -479,13 +487,30 @@ export function createTerminalBridge(args: {
     terminalId: string,
     cols: number,
     rows: number,
+    isAttachCurrent: () => boolean,
     surfaceSize?: { cols: number; rows: number },
   ): Promise<SharedTerminalSession> {
     if (disposed) throw new Error("terminal bridge disposed");
     const creationRevision = lifecycleRevision;
     // Resolve before checking the map so concurrent attaches for the same
     // terminal cannot double-create while the first resolution is in flight.
+    const settingsRevision = surfaceSettingsRevision;
     const mode = await navigationMode();
+    const surfaceCodecsEnabled =
+      mode === "browser-local"
+        ? await (args.surfaceCodecsEnabled?.() ?? true)
+        : false;
+    if (!isCurrent(creationRevision))
+      throw new Error("terminal bridge disposed");
+    if (!isAttachCurrent()) throw new Error("terminal attachment changed");
+    if (settingsRevision !== surfaceSettingsRevision)
+      return getSharedTerminal(
+        terminalId,
+        cols,
+        rows,
+        isAttachCurrent,
+        surfaceSize,
+      );
     const existing = sharedTerminals.get(terminalId);
     if (existing && !existing.thin.isClosed) return existing;
     if (existing) {
@@ -500,6 +525,8 @@ export function createTerminalBridge(args: {
             terminalId,
             args.lookupPaneId,
             logger,
+            undefined,
+            surfaceCodecsEnabled,
           )
         : new ThinClient(args.clientSocketPath, args.herdrProtocol);
     let resolveFirstFrame!: (seen: boolean) => void;
@@ -878,72 +905,81 @@ export function createTerminalBridge(args: {
         viewed.set(terminalId, { cols, rows });
         terminalViewers.set(ws, viewed);
         const tokens = attachmentTokens.get(ws) ?? new Map<string, object>();
-        tokens.set(terminalId, {});
+        const token = {};
+        tokens.set(terminalId, token);
         attachmentTokens.set(ws, tokens);
-        const shared = await getSharedTerminal(
-          terminalId,
-          cols,
-          rows,
-          surfaceSize,
-        );
-        shared.viewers.add(ws);
+        const ownsAttempt = () =>
+          attachmentTokens.get(ws)?.get(terminalId) === token;
+        const attemptIsCurrent = () =>
+          ownsAttempt() && requestIsCurrent() && isCurrent(operationRevision);
+        let shared: SharedTerminalSession | null = null;
         try {
+          shared = await getSharedTerminal(
+            terminalId,
+            cols,
+            rows,
+            attemptIsCurrent,
+            surfaceSize,
+          );
+          if (attemptIsCurrent()) shared.viewers.add(ws);
           await shared.connecting;
+          const validate = () => {
+            if (!isCurrent(operationRevision))
+              throw new Error("terminal bridge disposed");
+            if (
+              !attemptIsCurrent() ||
+              sharedTerminals.get(terminalId) !== shared ||
+              shared.thin.isClosed
+            )
+              throw new Error("terminal attachment changed");
+          };
+          validate();
+          if (
+            shared.cols !== cols ||
+            shared.rows !== rows ||
+            refreshReusedTerminal
+          ) {
+            // A reused idle stream still needs a complete frame for a new viewer.
+            shared.thin.resize(cols, rows);
+            shared.cols = cols;
+            shared.rows = rows;
+            logger.debug(
+              refreshReusedTerminal ? "terminal refreshed" : "terminal resized",
+              {
+                connection: args.connectionId ?? "legacy-default",
+                client: args.clientLabel(ws),
+                terminal: terminalId,
+                size: `${cols}x${rows}`,
+              },
+            );
+          }
+          if (relaySize && relayRevision !== null) {
+            await syncClipboardRelayAfterAttach(
+              shared,
+              relaySize,
+              relayRevision,
+            );
+          }
+          validate();
+          logger.debug("terminal attached", {
+            connection: args.connectionId ?? "legacy-default",
+            client: args.clientLabel(ws),
+            terminal: terminalId,
+            viewers: shared.viewers.size,
+            size: `${cols}x${rows}`,
+            shared: sharedMode,
+          });
+          return reply({
+            ok: true,
+            ...(shared.thin instanceof EndpointTerminalSession
+              ? { endpoint: shared.thin.negotiation }
+              : {}),
+          });
         } catch (e) {
-          detachTerminalViewer(ws, terminalId);
+          // A superseded attach must not detach its replacement's viewer.
+          if (ownsAttempt()) detachTerminalViewer(ws, terminalId, shared);
           throw e;
         }
-        if (
-          !isCurrent(operationRevision) ||
-          sharedTerminals.get(terminalId) !== shared
-        ) {
-          detachTerminalViewer(ws, terminalId);
-          shared.thin.close();
-          throw new Error("terminal bridge disposed");
-        }
-        if (
-          shared.cols !== cols ||
-          shared.rows !== rows ||
-          refreshReusedTerminal
-        ) {
-          // Herdr resets its ANSI baseline on Resize, including a same-size
-          // resize. Refresh a reused stream so a newly attached browser gets a
-          // complete frame even when the terminal is otherwise idle.
-          shared.thin.resize(cols, rows);
-          shared.cols = cols;
-          shared.rows = rows;
-          logger.debug(
-            refreshReusedTerminal ? "terminal refreshed" : "terminal resized",
-            {
-              connection: args.connectionId ?? "legacy-default",
-              client: args.clientLabel(ws),
-              terminal: terminalId,
-              size: `${cols}x${rows}`,
-            },
-          );
-        }
-        if (relaySize && relayRevision !== null) {
-          await syncClipboardRelayAfterAttach(shared, relaySize, relayRevision);
-        }
-        if (!isCurrent(operationRevision)) {
-          detachTerminalViewer(ws, terminalId);
-          shared.thin.close();
-          throw new Error("terminal bridge disposed");
-        }
-        logger.debug("terminal attached", {
-          connection: args.connectionId ?? "legacy-default",
-          client: args.clientLabel(ws),
-          terminal: terminalId,
-          viewers: shared.viewers.size,
-          size: `${cols}x${rows}`,
-          shared: sharedMode,
-        });
-        return reply({
-          ok: true,
-          ...(shared.thin instanceof EndpointTerminalSession
-            ? { endpoint: shared.thin.negotiation }
-            : {}),
-        });
       }
 
       if (method === "terminal.relay_resize") {
@@ -1159,6 +1195,16 @@ export function createTerminalBridge(args: {
     }));
   }
 
+  function refreshSurfaceCodecs() {
+    if (disposed) return;
+    surfaceSettingsRevision += 1;
+    for (const shared of sharedTerminals.values()) {
+      if (!(shared.thin instanceof EndpointTerminalSession)) continue;
+      shared.lastError = "terminal_configuration_changed";
+      shared.thin.close();
+    }
+  }
+
   function dispose() {
     if (disposed) return;
     disposed = true;
@@ -1182,6 +1228,7 @@ export function createTerminalBridge(args: {
     viewedTerminals,
     statusTerminals,
     browserClientCountChanged,
+    refreshSurfaceCodecs,
     dispose,
   };
 }
