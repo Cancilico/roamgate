@@ -118,6 +118,7 @@ export class EndpointClient extends EventEmitter {
       resolve: (result: unknown) => void;
       reject: (error: Error) => void;
       chunks: string[];
+      timer?: ReturnType<typeof setTimeout>;
     }
   >();
 
@@ -250,6 +251,7 @@ export class EndpointClient extends EventEmitter {
   callEndpoint(
     method: string,
     params: Record<string, unknown>,
+    timeoutMs?: number,
   ): Promise<unknown> {
     if (this.closed) {
       return Promise.reject(new Error("endpoint client closed"));
@@ -268,7 +270,19 @@ export class EndpointClient extends EventEmitter {
     w.string(this.bootId);
     w.string(JSON.stringify({ id: requestId, method, params }));
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(requestId, { resolve, reject, chunks: [] });
+      const timer =
+        timeoutMs === undefined
+          ? undefined
+          : setTimeout(() => {
+              this.pendingRequests.delete(requestId);
+              reject(new Error(`Endpoint ${method} timed out`));
+            }, timeoutMs);
+      this.pendingRequests.set(requestId, {
+        resolve,
+        reject,
+        chunks: [],
+        timer,
+      });
       this.write(w.toBuffer());
     });
   }
@@ -278,6 +292,7 @@ export class EndpointClient extends EventEmitter {
     this.surface = null;
     this.rejectWelcome(new Error("endpoint client closed during handshake"));
     for (const pending of this.pendingRequests.values()) {
+      clearTimeout(pending.timer);
       pending.reject(new Error("endpoint client closed"));
     }
     this.pendingRequests.clear();
@@ -364,6 +379,7 @@ export class EndpointClient extends EventEmitter {
         if (pending) {
           pending.chunks.push(data);
           if (finalChunk) {
+            clearTimeout(pending.timer);
             this.pendingRequests.delete(requestId);
             try {
               const parsed = JSON.parse(pending.chunks.join(""));

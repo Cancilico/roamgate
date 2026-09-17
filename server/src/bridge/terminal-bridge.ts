@@ -601,6 +601,7 @@ export function createTerminalBridge(args: {
               width,
               height,
               full: t.full,
+              ...(t.linkFrame ? { link_frame: t.linkFrame } : {}),
               ...(typeof t.mouseReporting === "boolean"
                 ? { mouse_reporting: t.mouseReporting }
                 : {}),
@@ -1072,6 +1073,46 @@ export function createTerminalBridge(args: {
           if (focusIntents.get(ws) === intent) focusIntents.delete(ws);
         }
         return reply({ ok: true });
+      }
+      if (method === "terminal.link.resolve") {
+        if (
+          !(thin instanceof EndpointTerminalSession) ||
+          !shared ||
+          !requestedTerminalId
+        )
+          return fail(NO_TERMINAL_ATTACHED_MESSAGE);
+        const { frame, row, col } = params;
+        const viewport = terminalViewers.get(ws)?.get(requestedTerminalId);
+        if (
+          typeof frame !== "string" ||
+          typeof row !== "number" ||
+          typeof col !== "number" ||
+          !Number.isInteger(row) ||
+          !Number.isInteger(col) ||
+          row < 0 ||
+          col < 0 ||
+          !viewport ||
+          row >= viewport.rows ||
+          col >= viewport.cols
+        )
+          return fail("Valid terminal link frame and cell required");
+        const validate = await waitForOwnedTerminal(
+          ws,
+          requestedTerminalId,
+          shared,
+          requestIsCurrent,
+        );
+        const result = await thin.resolveLink(frame, row, col);
+        validate();
+        return reply({
+          ...result,
+          regions: result.regions
+            .filter((r) => r.row < viewport.rows && r.start_col < viewport.cols)
+            .map((r) => ({
+              ...r,
+              end_col: Math.min(r.end_col, viewport.cols - 1),
+            })),
+        });
       }
       if (method === "terminal.input") {
         if (!thin || thin.isClosed || !shared || !requestedTerminalId) {
