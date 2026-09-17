@@ -74,10 +74,39 @@ capabilities. Attachment waits for the initial snapshot. Each terminal crops its
 pane from the server-rendered tab surface and sends semantic input to that pane;
 panes retain their shared layout dimensions.
 
-Incremental surface patches update only the named panes; other pane metadata
-remains available for cropping and cursor delivery. Each patch replaces the
-complete cursor state, including `null` to clear it. Pane topology changes
-require a full surface; patches naming unknown panes are discarded.
+Endpoint hellos opt into `surface_delta` and `surface_reuse` by default; each
+socket accepts these named controls only when enabled and its welcome advertises
+the matching capability.
+Herdr 0.9.0 and peers without these capabilities retain the generation-1 full-frame
+and patch path. Delta controls carry unpadded Base64 bincode; reuse controls carry
+JSON metadata. Both compose against the same connection-local baseline as full
+surfaces and legacy patches, before pane cropping or presentation filtering.
+
+**Configuration → Connection → Terminal incremental transport** controls both
+codecs together. `settings.terminal_transport.get/update` reads and persists the
+boolean `surface_codecs` under the routed connection ID in `settings.json`.
+Authenticated bridge clients share this preference; it is not a browser-local
+setting or a separate authorization boundary. Successful changes close only that
+runtime's endpoint display sessions and broadcast
+`settings.terminal_transport.updated`. Viewers reattach with fresh baselines; the
+`terminal_configuration_changed` close reason does not count toward takeover
+retry limits. Terminal tasks, legacy thin sessions, and other connection runtimes
+are unaffected. Queued attachments re-read settings if a change overtakes them.
+
+Legacy patches update only named panes and replace the complete cursor state,
+including `null` to clear it. Delta/reuse metadata replaces the pane list, cursor,
+hyperlinks, and scroll state, allowing same-size tab/topology changes. Geometry
+changes require a full surface. Decoders bound collections and validate boot,
+projection, surface revisions, spans, and hyperlink indices before publishing.
+A malformed or mismatched update closes the stream and clears its baseline;
+viewers receive the existing terminal-closed signal and reattach with a fresh
+hello and full frame rather than silently retaining a stale screen.
+
+These codecs reduce Herdr-to-bridge traffic. The bridge still composes complete
+frames and sends its existing cropped ANSI repaints to browsers; upstream byte
+savings do not imply smaller bridge-to-browser messages. Popup grids are retained
+for delta validation, but popup and Kitty graphics rendering remain outside the
+pane terminal presentation.
 
 `terminal.attach` carries pane content dimensions in `cols`/`rows`. When layout
 is available, the browser also supplies `surface_cols`/`surface_rows` for the

@@ -1048,8 +1048,13 @@ export function TerminalView({
       // wars between two clients so they cannot evict each other forever.
       touchSelection.reset();
       endpointPresentation.reset();
+      attachWatchdogRef.current?.cancel();
       attachedRef.current = null;
       attachingRef.current = null;
+      if (closed.reason === "terminal_configuration_changed") {
+        setAttachRetry((value) => value + 1);
+        return;
+      }
       const now = Date.now();
       attachEvictionsRef.current = attachEvictionsRef.current.filter(
         (at) => now - at < TERMINAL_EVICTION_WINDOW_MS,
@@ -2537,7 +2542,11 @@ export function TerminalView({
       })
       .then(
         (result) => {
-          if (!connectionClient.isCurrent()) return;
+          if (
+            !connectionClient.isCurrent() ||
+            !attachWatchdogRef.current?.isCurrent(attachAttempt)
+          )
+            return;
           if (desiredTerminalRef.current === terminalId)
             store.setTerminalEndpoint(
               connectionClient,
@@ -2607,7 +2616,11 @@ export function TerminalView({
           }
         },
         (e) => {
-          if (!connectionClient.isCurrent()) return;
+          if (
+            !connectionClient.isCurrent() ||
+            !attachWatchdogRef.current?.isCurrent(attachAttempt)
+          )
+            return;
           attachWatchdogRef.current?.cancel(attachAttempt);
           if (attachingRef.current === terminalId) attachingRef.current = null;
           if (desiredTerminalRef.current === terminalId) {

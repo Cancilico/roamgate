@@ -106,11 +106,27 @@ async function run() {
     const trigger = container.querySelector<HTMLButtonElement>(
       "button[aria-label='Menu']",
     )!;
-    if (trigger.getAttribute("aria-expanded") !== "true")
+    if (!document.querySelector(".configuration-modal")) {
       flushSync(() => trigger.click());
+      const configuration = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(".config-menu-item"),
+      ).find((button) => button.textContent?.includes("Configuration"))!;
+      flushSync(() => configuration.click());
+      for (
+        let i = 0;
+        i < 40 && !document.querySelector(".configuration-modal");
+        i++
+      )
+        await settle();
+    }
+    const menu = document.querySelector<HTMLElement>(".configuration-modal")!;
+    flushSync(() =>
+      menu
+        .querySelector<HTMLButtonElement>("#configuration-tab-Behavior")!
+        .click(),
+    );
     await settle();
-    const menu = document.getElementById("roamgate-config-menu")!;
-    check(Boolean(menu), `${theme}: notification menu missing`);
+    check(Boolean(menu), `${theme}: notification configuration missing`);
     for (const animation of menu.getAnimations({ subtree: true }))
       animation.finish();
     const master = menu.querySelector<HTMLButtonElement>(

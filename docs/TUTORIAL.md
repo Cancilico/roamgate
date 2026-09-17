@@ -236,7 +236,7 @@ Use its HTTPS URL: `127.0.0.1` on a phone means the phone, not the work computer
    as needed.
 3. Open Changes to review the README diff. Mobile uses a unified diff layout;
    long-press a file to open its actions menu.
-4. Adjust **Menu > Appearance > Text size** (80%-150%), then use the relevant
+4. Adjust **Menu > Configuration > Appearance > Text size** (80%-150%), then use the relevant
    platform entry below to install the PWA.
 
 | Browser / device | Installation entry |
