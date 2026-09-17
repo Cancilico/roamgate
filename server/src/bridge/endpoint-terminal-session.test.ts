@@ -7,6 +7,8 @@ import { BinReader, BinWriter, encodeFrame } from "./bincode";
 import {
   EndpointTerminalSession,
   cropFrame,
+  frameHyperlinkAt,
+  resolvedFrameLink,
 } from "./endpoint-terminal-session";
 import type { CellData, FrameData } from "./thin-client";
 import type { ServerWebSocket } from "bun";
@@ -74,6 +76,8 @@ type TestPane = {
   offset?: number;
   maxOffset?: number;
   hasScroll?: boolean;
+  contentRevision?: number;
+  focused?: boolean;
 };
 const DEFAULT_PANES: TestPane[] = [
   { paneId: "w1:p1", x: 0, mouseReporting: false },
@@ -90,9 +94,11 @@ function writePane(
   offset = 0,
   maxOffset = 100,
   hasScroll = true,
+  contentRevision = 1,
+  focused = true,
 ) {
   w.string(paneId);
-  w.varint(1);
+  w.varint(contentRevision);
   for (const bounds of [rect, innerRect]) {
     w.varint(bounds.x);
     w.varint(bounds.y);
@@ -106,7 +112,7 @@ function writePane(
     w.varint(maxOffset); // max_offset_from_bottom
     w.varint(3); // viewport_rows
   }
-  w.bool(true); // focused
+  w.bool(focused); // focused
   w.bool(mouseReporting);
   w.bool(false);
   w.bool(false);
@@ -138,6 +144,8 @@ function surfaceFrame(
       pane.offset,
       pane.maxOffset,
       pane.hasScroll,
+      pane.contentRevision,
+      pane.focused,
     );
   w.varint(0); // splits
   w.bool(false); // popup
@@ -177,7 +185,9 @@ async function startSessionServer(handlers: {
   capabilities?: (connection: number) => string[];
   onPaneInput?: (paneId: string, reader: BinReader) => void;
   panes?: TestPane[];
-  onConnection?: (sendSurface: (panes: TestPane[]) => void) => void;
+  onConnection?: (
+    sendSurface: (panes: TestPane[], frame?: FrameData) => void,
+  ) => void;
   onPatchConnection?: (
     send: (cursor: FrameData["cursor"], panes: TestPane[]) => void,
   ) => void;
@@ -228,8 +238,9 @@ async function startSessionServer(handlers: {
     let input = Buffer.alloc(0);
     let greeted = false;
     let revision = 1;
-    handlers.onConnection?.((panes) =>
-      socket.write(encodeFrame(surfaceFrame(++revision, frame, panes))),
+    handlers.onConnection?.(
+      (panes, nextFrame = handlers.initialSurface?.frame ?? frame) =>
+        socket.write(encodeFrame(surfaceFrame(++revision, nextFrame, panes))),
     );
     handlers.onPatchConnection?.((cursor, panes) => {
       const w = new BinWriter();
@@ -3600,3 +3611,575 @@ for (const invalidate of [false, true]) {
     }
   });
 }
+
+function linkFrame(rows: string[], width = 24): FrameData {
+  return {
+    width,
+    height: rows.length,
+    cursor: null,
+    hyperlinks: [],
+    cells: rows.flatMap((text) => {
+      const cells: CellData[] = [];
+      for (const symbol of new Intl.Segmenter(undefined, {
+        granularity: "grapheme",
+      }).segment(text)) {
+        cells.push(cell(symbol.segment));
+        for (let i = 1; i < Bun.stringWidth(symbol.segment); i++)
+          cells.push(cell(" "));
+      }
+      while (cells.length < width) cells.push(cell(" "));
+      return cells;
+    }),
+  };
+}
+
+const resolvedRegions = (
+  regions: { row: number; start_col: number; end_col: number }[],
+) => ({ type: "pane_link_resolved", regions });
+
+describe("read-only terminal links", () => {
+  test("OSC8 hit testing follows wide cells, combining glyphs and the actual split crop", async () => {
+    const frame = linkFrame(["", "    界e\u0301 label", ""], 24);
+    frame.hyperlinks = [
+      "https://example.org/hidden",
+      "file://localhost/tmp/docs",
+    ];
+    frame.cells[28]!.hyperlink = 0;
+    frame.cells[30]!.hyperlink = 1;
+    const cropped = cropFrame(frame, { x: 4, y: 1, width: 12, height: 1 });
+    expect(frameHyperlinkAt(cropped, 0, 0)).toBe(frame.hyperlinks[0]);
+    expect(frameHyperlinkAt(cropped, 0, 1)).toBe(frame.hyperlinks[0]);
+    expect(frameHyperlinkAt(cropped, 0, 2)).toBe(frame.hyperlinks[1]);
+    expect(frameHyperlinkAt(cropped, 0, 3)).toBeUndefined();
+    cropped.cells[2]!.hyperlink = 99;
+    expect(frameHyperlinkAt(cropped, 0, 2)).toBeNull();
+  });
+
+  test("owned OSC8 target needs no upstream link capability and rejects stale tokens", async () => {
+    const frame = linkFrame(["", "    label", ""], 24);
+    frame.cells[28]!.hyperlink = 0;
+    frame.hyperlinks = ["file://localhost/tmp/docs"];
+    const panes: TestPane[] = [
+      {
+        paneId: "w1:p1",
+        x: 0,
+        mouseReporting: false,
+        rect: { x: 0, y: 0, width: 24, height: 3 },
+        innerRect: { x: 4, y: 1, width: 12, height: 1 },
+      },
+    ];
+    const requests: string[] = [];
+    let send!: (panes: TestPane[], frame?: FrameData) => void;
+    const socketPath = await startSessionServer({
+      initialSurface: { frame, panes },
+      methods: ["pane.focus"],
+      onConnection: (value) => {
+        send = value;
+      },
+      onRequest: (method) => {
+        requests.push(method);
+      },
+    });
+    const session = new EndpointTerminalSession(
+      socketPath,
+      "terminal",
+      async () => "w1:p1",
+    );
+    let token = "";
+    session.on("terminal", (value) => {
+      token = value.linkFrame;
+    });
+    try {
+      await session.connect(12, 1, { cols: 24, rows: 3 });
+      expect(await session.resolveLink(token, 0, 0)).toEqual({
+        regions: [],
+        url: null,
+        uri: frame.hyperlinks[0],
+      });
+      const old = token;
+      const next = once(session, "terminal");
+      send(panes, { ...frame, hyperlinks: ["javascript:alert(1)"] });
+      await next;
+      await expect(session.resolveLink(old, 0, 0)).rejects.toThrow(
+        "frame changed",
+      );
+      expect(await session.resolveLink(token, 0, 0)).toEqual({
+        regions: [],
+        url: null,
+        uri: "javascript:alert(1)",
+      });
+      expect(requests).not.toContain("pane.link.resolve");
+      expect(requests).not.toContain("pane.link.activate");
+    } finally {
+      session.close();
+    }
+  });
+
+  test("recovers wrapped URLs from pane display cells, including wide and combining text", () => {
+    const frame = linkFrame([
+      "",
+      "See https://example.com/",
+      "界e\u0301/guide",
+      "",
+    ]);
+    const regions = [
+      { row: 1, start_col: 4, end_col: 23 },
+      { row: 2, start_col: 0, end_col: 8 },
+    ];
+    expect(resolvedFrameLink(resolvedRegions(regions), frame, 2, 1)).toEqual({
+      regions,
+      url: "https://example.com/界e\u0301/guide",
+    });
+  });
+
+  test("accepts only a single blank spacer before a wrapped wide glyph", () => {
+    const frame = linkFrame(["", " https://example.com/ab", "界/c", ""]);
+    const regions = [
+      { row: 1, start_col: 1, end_col: 22 },
+      { row: 2, start_col: 0, end_col: 3 },
+    ];
+    const resolve = () =>
+      resolvedFrameLink(resolvedRegions(regions), frame, 2, 0).url;
+    expect(resolve()).toBe("https://example.com/ab界/c");
+    frame.cells[47]!.symbol = "x";
+    expect(resolve()).toBeNull();
+    frame.cells[47]!.symbol = " ";
+    frame.cells[48]!.symbol = "a";
+    expect(resolve()).toBeNull();
+    frame.cells[48]!.symbol = "界";
+    regions[0]!.end_col--;
+    expect(resolve()).toBeNull();
+  });
+
+  test("rejects clipped head and tail instead of opening a visible URL fragment", () => {
+    const head = linkFrame(["https://example.com/part", ""]);
+    const headRegions = [{ row: 0, start_col: 0, end_col: 22 }];
+    expect(resolvedFrameLink(resolvedRegions(headRegions), head, 0, 2)).toEqual(
+      { regions: headRegions, url: null },
+    );
+    const tail = linkFrame(["", " https://example.com/tail"]);
+    const tailRegions = [{ row: 1, start_col: 1, end_col: 23 }];
+    expect(
+      resolvedFrameLink(resolvedRegions(tailRegions), tail, 1, 2).url,
+    ).toBeNull();
+    // Ghostty omits the spacer before a wide glyph that wrapped offscreen.
+    expect(
+      resolvedFrameLink(
+        resolvedRegions([{ row: 1, start_col: 1, end_col: 22 }]),
+        tail,
+        1,
+        2,
+      ).url,
+    ).toBeNull();
+  });
+
+  test("does not reinterpret OSC 8 labels or malformed/out-of-crop regions as URLs", () => {
+    const frame = linkFrame(["", "https://example.com", ""]);
+    const region = { row: 1, start_col: 0, end_col: 18 };
+    frame.cells[24]!.hyperlink = 0;
+    frame.hyperlinks = ["https://example.org/real-target"];
+    expect(
+      resolvedFrameLink(resolvedRegions([region]), frame, 1, 1).url,
+    ).toBeNull();
+    for (const invalid of [
+      [{ ...region, end_col: 24 }],
+      [{ ...region, row: 3 }],
+      [{ ...region, start_col: -1 }],
+      [region, region],
+      [{ ...region, row: 0 }],
+    ])
+      expect(resolvedFrameLink(resolvedRegions(invalid), frame, 1, 1)).toEqual({
+        regions: [],
+        url: null,
+      });
+  });
+
+  test.each(["frame", "scroll", "resize", "input", "close"])(
+    "drops delayed resolution after %s and never activates plugins",
+    async (change) => {
+      let send!: (panes: TestPane[]) => void;
+      let finish!: (result: unknown) => void;
+      let dispatched!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        dispatched = resolve;
+      });
+      const requests: { method: string; params: any }[] = [];
+      const socketPath = await startSessionServer({
+        methods: [
+          "pane.focus",
+          "pane.scroll",
+          "pane.link.resolve",
+          "pane.link.activate",
+        ],
+        onConnection: (value) => {
+          send = value;
+        },
+        onRequest: (method, params) => {
+          requests.push({ method, params });
+          if (method === "pane.link.resolve") {
+            dispatched();
+            return new Promise((resolve) => {
+              finish = resolve;
+            });
+          }
+        },
+      });
+      const session = new EndpointTerminalSession(
+        socketPath,
+        "terminal",
+        async () => "w1:p1",
+      );
+      let token = "";
+      session.on("terminal", (frame) => {
+        token = frame.linkFrame;
+      });
+      try {
+        await session.connect(8, 3, { cols: 10, rows: 5 });
+        const result = session
+          .resolveLink(token, 1, 2)
+          .catch((error: unknown) => error);
+        await pending;
+        expect(requests.at(-1)).toEqual({
+          method: "pane.link.resolve",
+          params: {
+            pane_id: "w1:p1",
+            viewport_row: 1,
+            col: 2,
+            content_revision: 1,
+            offset_from_bottom: 0,
+          },
+        });
+        if (change === "frame") {
+          const next = once(session, "terminal");
+          send(DEFAULT_PANES.map((pane) => ({ ...pane, contentRevision: 2 })));
+          await next;
+        } else if (change === "scroll") session.scroll("up", 2);
+        else if (change === "resize") session.resize(9, 3);
+        else if (change === "input") session.input(Buffer.from("a"));
+        else session.close();
+        finish(resolvedRegions([{ row: 1, start_col: 0, end_col: 7 }]));
+        expect(await result).toBeInstanceOf(Error);
+        expect(requests.some((r) => r.method === "pane.link.activate")).toBe(
+          false,
+        );
+      } finally {
+        session.close();
+      }
+    },
+  );
+
+  test.each(["reversal", "clamped"])(
+    "%s scroll without a surface keeps new lookups usable but retires pending replies",
+    async (kind) => {
+      const held = deferred<unknown>();
+      const dispatched = deferred<void>();
+      let requests = 0;
+      let scrolls = 0;
+      const socketPath = await startSessionServer({
+        methods: ["pane.focus", "pane.scroll", "pane.link.resolve"],
+        onRequest: (method) => {
+          if (method === "pane.scroll") {
+            scrolls++;
+            return paneScrollResult(0, 0);
+          }
+          if (method === "pane.link.resolve") {
+            if (++requests === 1) {
+              dispatched.resolve();
+              return held.promise;
+            }
+            return resolvedRegions([]);
+          }
+        },
+      });
+      const session = new EndpointTerminalSession(
+        socketPath,
+        "terminal",
+        async () => "w1:p1",
+      );
+      let token = "";
+      let frames = 0;
+      session.on("terminal", (frame) => {
+        token = frame.linkFrame;
+        frames++;
+      });
+      try {
+        await session.connect(8, 3, { cols: 10, rows: 5 });
+        const displayed = token;
+        const frameCount = frames;
+        const stale = session.resolveLink(displayed, 1, 2).catch((e) => e);
+        await dispatched.promise;
+        session.scroll("up", 3);
+        if (kind === "reversal") session.scroll("down", 3);
+        await session.focus(() => false);
+        held.resolve(resolvedRegions([]));
+        expect(await stale).toBeInstanceOf(Error);
+        expect(await session.resolveLink(displayed, 1, 2)).toEqual({
+          regions: [],
+          url: null,
+        });
+        expect(token).toBe(displayed);
+        expect(frames).toBe(frameCount);
+        expect(scrolls).toBe(kind === "reversal" ? 0 : 1);
+      } finally {
+        held.resolve(resolvedRegions([]));
+        session.close();
+      }
+    },
+  );
+
+  test("resolve and focus full-surface emissions retain link identity, but content and intent do not", async () => {
+    const frame = linkFrame(["", " https://example.com/a", ""], 24);
+    const panes: TestPane[] = [
+      {
+        paneId: "w1:p1",
+        x: 0,
+        mouseReporting: false,
+        rect: { x: 0, y: 0, width: 24, height: 3 },
+        innerRect: { x: 0, y: 0, width: 24, height: 3 },
+      },
+    ];
+    let send!: (panes: TestPane[], frame?: FrameData) => void;
+    const methods: string[] = [];
+    const socketPath = await startSessionServer({
+      initialSurface: { frame, panes },
+      methods: ["pane.focus", "pane.scroll", "pane.link.resolve"],
+      onConnection: (value) => {
+        send = value;
+      },
+      onRequest: async (method) => {
+        methods.push(method);
+        // Real Herdr emits a new full surface as a side effect of each RPC.
+        if (method === "pane.link.resolve") {
+          const shown = once(session, "terminal");
+          send(panes, structuredClone(frame));
+          await shown;
+          return resolvedRegions([{ row: 1, start_col: 1, end_col: 21 }]);
+        }
+        send(panes, {
+          ...frame,
+          cursor: { x: 2, y: 1, visible: true, shape: 1 },
+        });
+      },
+    });
+    const session = new EndpointTerminalSession(
+      socketPath,
+      "terminal",
+      async () => "w1:p1",
+    );
+    let token = "";
+    session.on("terminal", (value) => {
+      token = value.linkFrame;
+    });
+    try {
+      await session.connect(24, 3);
+      const original = token;
+      expect((await session.resolveLink(original, 1, 2)).url).toBe(
+        "https://example.com/a",
+      );
+      expect(token).toBe(original);
+      // A bounded wheel is an intent no-op and produces no acknowledgement.
+      session.scroll("down", 3);
+      expect((await session.resolveLink(original, 1, 2)).url).toBe(
+        "https://example.com/a",
+      );
+      const focused = once(session, "terminal");
+      await session.focus(() => true);
+      await focused;
+      expect(token).toBe(original);
+      expect((await session.resolveLink(original, 1, 2)).url).toBe(
+        "https://example.com/a",
+      );
+      expect(
+        methods.filter((method) => method === "pane.link.resolve"),
+      ).toHaveLength(3);
+      for (const change of [
+        "cells",
+        "hyperlink",
+        "scroll",
+        "viewport",
+        "revision",
+        "input",
+      ]) {
+        const restored = once(session, "terminal");
+        send(panes, frame);
+        await restored;
+        const before = token;
+        const changed = structuredClone(frame);
+        const metadata = structuredClone(panes);
+        if (change === "cells") changed.cells[25]!.symbol = "X";
+        if (change === "hyperlink") {
+          changed.cells[25]!.hyperlink = 0;
+          changed.hyperlinks = ["https://example.org/other"];
+        }
+        if (change === "scroll") metadata[0]!.offset = 1;
+        if (change === "viewport") metadata[0]!.innerRect!.width = 23;
+        if (change === "revision") metadata[0]!.contentRevision = 2;
+        if (change === "input") session.input(Buffer.from("a"));
+        const shown = once(session, "terminal");
+        send(metadata, changed);
+        await shown;
+        expect(token).not.toBe(before);
+        await expect(session.resolveLink(before, 1, 2)).rejects.toThrow(
+          "frame changed",
+        );
+      }
+      expect(methods).not.toContain("pane.link.activate");
+    } finally {
+      session.close();
+    }
+  });
+
+  test("uses only the attached socket's methods and rejects cells outside its split crop", async () => {
+    const requests: string[] = [];
+    const socketPath = await startSessionServer({
+      methods: (connection) =>
+        connection === 1 ? ["pane.focus", "pane.link.resolve"] : ["pane.focus"],
+      onRequest: (method) => {
+        requests.push(method);
+        return resolvedRegions([]);
+      },
+      panes: [{ paneId: "w1:p2", x: 10, mouseReporting: false }],
+    });
+    const first = new EndpointTerminalSession(
+      socketPath,
+      "t2",
+      async () => "w1:p2",
+    );
+    const second = new EndpointTerminalSession(
+      socketPath,
+      "t2",
+      async () => "w1:p2",
+    );
+    let token = "";
+    first.on("terminal", (frame) => {
+      token = frame.linkFrame;
+    });
+    let secondToken = "";
+    second.on("terminal", (frame) => {
+      secondToken = frame.linkFrame;
+    });
+    try {
+      await first.connect(8, 3, { cols: 20, rows: 5 });
+      await first.resolveLink(token, 1, 2);
+      await expect(first.resolveLink(token, 0, 8)).rejects.toThrow();
+      await second.connect(8, 3, { cols: 20, rows: 5 });
+      await expect(second.resolveLink(token, 1, 2)).rejects.toThrow();
+      expect(await second.resolveLink(secondToken, 1, 2)).toEqual({
+        regions: [],
+        url: null,
+      });
+      expect(requests.filter((r) => r === "pane.link.resolve")).toHaveLength(1);
+    } finally {
+      first.close();
+      second.close();
+    }
+  });
+});
+
+test("terminal.link.resolve requires this viewer's attachment and frame token", async () => {
+  const requests: { method: string; params: any }[] = [];
+  const socketPath = await startSessionServer({
+    methods: ["pane.focus", "pane.link.resolve"],
+    onRequest: (method, params) => {
+      requests.push({ method, params });
+      return resolvedRegions([]);
+    },
+  });
+  const { bridge, ws, replies, attach } = creationBridge(socketPath);
+  try {
+    await attach();
+    const frame = replies.find((reply) => reply.terminal?.link_frame)?.terminal
+      .link_frame;
+    expect(frame).toBeString();
+    const params = { terminal_id: "term1", frame, row: 1, col: 2 };
+    await bridge.handleTerminalRpc(
+      ws,
+      "resolve",
+      "terminal.link.resolve",
+      params,
+    );
+    expect(replies.find((reply) => reply.id === "resolve")?.result).toEqual({
+      regions: [],
+      url: null,
+    });
+    await bridge.handleTerminalRpc(
+      {} as ServerWebSocket<unknown>,
+      "other-viewer",
+      "terminal.link.resolve",
+      params,
+    );
+    await bridge.handleTerminalRpc(ws, "bad-cell", "terminal.link.resolve", {
+      ...params,
+      row: 0.5,
+    });
+    await bridge.handleTerminalRpc(ws, "bad-frame", "terminal.link.resolve", {
+      ...params,
+      frame: "prior-socket:1",
+    });
+    await bridge.handleTerminalRpc(ws, "detach", "terminal.detach", {
+      terminal_id: "term1",
+    });
+    await bridge.handleTerminalRpc(
+      ws,
+      "detached",
+      "terminal.link.resolve",
+      params,
+    );
+    for (const id of ["other-viewer", "bad-cell", "bad-frame", "detached"])
+      expect(replies.find((reply) => reply.id === id)?.error).toBeDefined();
+    expect(requests.filter((r) => r.method === "pane.link.resolve")).toEqual([
+      {
+        method: "pane.link.resolve",
+        params: {
+          pane_id: "w1:p1",
+          viewport_row: 1,
+          col: 2,
+          content_revision: 1,
+          offset_from_bottom: 0,
+        },
+      },
+    ]);
+  } finally {
+    bridge.dispose();
+  }
+});
+
+test("optional link lookup timeout does not block scroll or disconnect the terminal", async () => {
+  const started = deferred<void>();
+  const scrolled = deferred<void>();
+  const socketPath = await startSessionServer({
+    methods: ["pane.focus", "pane.scroll", "pane.link.resolve"],
+    onRequest: (method) => {
+      if (method === "pane.link.resolve") {
+        started.resolve();
+        return new Promise(() => {});
+      }
+      if (method === "pane.scroll") scrolled.resolve();
+    },
+  });
+  const session = new EndpointTerminalSession(
+    socketPath,
+    "terminal",
+    async () => "w1:p1",
+  );
+  let frame = "";
+  session.on("terminal", (value) => {
+    frame = value.linkFrame;
+  });
+  try {
+    await session.connect(8, 3, { cols: 10, rows: 5 });
+    jest.useFakeTimers();
+    const lookup = session
+      .resolveLink(frame, 1, 2)
+      .catch((error: unknown) => error);
+    await started.promise;
+    session.scroll("up", 1);
+    await scrolled.promise;
+    jest.advanceTimersByTime(1500);
+    expect(await lookup).toBeInstanceOf(Error);
+    expect(session.isClosed).toBe(false);
+  } finally {
+    jest.useRealTimers();
+    session.close();
+  }
+});

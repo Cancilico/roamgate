@@ -20,6 +20,11 @@ test.skipIf(!chrome).each([
   [1300, 1, "configuration"],
   [390, 1.25, "configuration"],
   [320, 1.5, "configuration"],
+  [1300, 1, "terminalLinks"],
+  [500, 1.25, "terminalLinks"],
+  [390, 1, "terminalLinks"],
+  [320, 1.5, "terminalLinks"],
+  [1300, 1, "terminalLinkProvider"],
 ])(
   "browser interactions preserve layout and input (width %d, DPR %d, %s)",
   async (width, deviceScale, fixture) => {
@@ -63,7 +68,12 @@ test.skipIf(!chrome).each([
     const timers = new Set<ReturnType<typeof setTimeout>>();
     try {
       const build = await Bun.build({
-        entrypoints: [join(import.meta.dir, `${fixture}.browser.tsx`)],
+        entrypoints: [
+          join(
+            import.meta.dir,
+            `${fixture}.browser.${fixture === "terminalLinkProvider" ? "ts" : "tsx"}`,
+          ),
+        ],
         outdir: dir,
         target: "browser",
         splitting: true,
@@ -173,8 +183,13 @@ test.skipIf(!chrome).each([
         width,
         height: 800,
         deviceScaleFactor: deviceScale,
-        mobile: false,
+        mobile: fixture === "terminalLinks" && width < 400,
       });
+      if (fixture === "terminalLinks" && width < 400)
+        await cdp("Emulation.setTouchEmulationEnabled", {
+          enabled: true,
+          maxTouchPoints: 5,
+        });
       await cdp("Page.navigate", { url: server.url.href });
       expect(await evaluate("innerWidth")).toBe(width);
       if (fixture === "configuration") {
@@ -234,7 +249,7 @@ test.skipIf(!chrome).each([
       const deadline = new Promise<never>((_, reject) => {
         const timer = setTimeout(
           () => reject(new Error("Browser regression checks timed out")),
-          30000,
+          fixture === "terminalLinks" && width < 400 ? 40000 : 30000,
         );
         timers.add(timer);
       });

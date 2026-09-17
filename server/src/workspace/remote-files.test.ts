@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { runBinaryProcessWithTimeout } from "./process";
 import {
   parseRemoteFileDelete,
   parseRemoteFileDownload,
@@ -6,6 +10,7 @@ import {
   parseRemoteFilePreview,
   parseRemoteFileResolutions,
   parseRemoteFileUpload,
+  resolveRemoteFilePaths,
 } from "./remote-files";
 
 function b64(value: string) {
@@ -132,4 +137,43 @@ describe("remote file protocol parsers", () => {
     expect(() => parseRemoteFileUpload("oops")).toThrow("oops");
     expect(() => parseRemoteFileDelete("oops")).toThrow("oops");
   });
+});
+
+// Execute the exact remote shell command locally, without an SSH server.
+test("remote resolution includes directories but rejects relative and symlink escapes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "herdr-gui-resolve-"));
+  try {
+    await mkdir(join(root, "docs"));
+    await writeFile(join(root, "docs", "guide.md"), "guide");
+    await symlink(join(root, ".."), join(root, "outside"));
+    const result = await resolveRemoteFilePaths({
+      host: "example.invalid",
+      rootPath: root,
+      requestedPaths: [
+        "docs/guide.md",
+        "docs",
+        join(root, "docs"),
+        "missing",
+        "..",
+        "outside",
+        join(root, ".."),
+      ],
+      shQuote: (value) => "'" + value.replace(/'/g, "'\"'\"'") + "'",
+      runProcessWithCodeTimeout: async (argv, timeout) => {
+        const result = await runBinaryProcessWithTimeout(
+          ["bash", "-c", argv[argv.length - 1]!],
+          timeout,
+        );
+        return { ...result, stdout: result.stdout.toString("utf8") };
+      },
+    });
+    expect(result).toEqual([
+      "docs/guide.md",
+      "docs",
+      join(root, "docs"),
+      join(root, ".."),
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

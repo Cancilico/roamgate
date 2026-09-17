@@ -123,8 +123,63 @@ cell repaints do not contain soft-wrap metadata, so file detection also consider
 adjacent path fragments with application-inserted indentation and padding. These
 inferred paths must pass workspace-scoped file resolution before activation;
 ordinary rows remain independent when no combined file exists. Scanning is bounded,
-blank lines separate contexts, and HTTP links use only explicit soft wraps. Pending
-lookups are discarded if the buffer, text, cell positions, or wrapping changes.
+blank lines separate contexts, and local HTTP detection uses only explicit soft
+wraps. File and directory links open the shared action menu; preview uses the
+pane's workspace, and directories can prefill the existing workspace-creation
+dialog. Web links still open directly in the browser with the configured modified
+click, never through a server-host browser or plugin.
+
+Each endpoint repaint also carries an opaque `link_frame` content identity, stable across identical, cursor-only,
+and focus-only surfaces (including those emitted by link resolution itself).
+Cropped cells, hyperlink targets, content revision, viewport/scroll changes, and
+input/resize intent invalidate it. Identical payloads do not rewrite xterm;
+cursor-only updates preserve its native link IDs and an in-progress click.
+`terminal.link.resolve` verifies the requesting
+viewer's attachment and this identity. OSC 8 targets are read from the owned
+cropped frame's cell hyperlink ID/table; this needs no `pane.link.resolve`
+advertisement. Plain-text lookups call the optional resolver on that exact
+terminal socket. Coordinates are zero-based display cells within the already
+cropped pane: do not add the split's surface origin, scrollback offset, CSS pixels,
+or interface scale. Requests include the emitted pane's content revision and
+scroll offset. Hover probes are bounded to URL starts and one continuation cell
+per row, not a per-cell scan; optional reads time out independently of terminal
+input, focus, and scrolling.
+
+Herdr 0.9.1's `pane.link.resolve` returns inclusive visible cell regions, **not a
+URL**. `pane.link.activate` returns a URL but also invokes configured plugin link
+handlers; Roamgate never calls it. Complete HTTP(S) targets can be reconstructed
+from the matching rendered regions, including wrapped URLs and wide/combining
+cells. A plain URL clipped by the Herdr viewport cannot be safely recovered;
+ambiguous viewport-edge regions are conservatively not clickable. xterm's native
+OSC 8 links retain their explicit full destinations, including when only part of
+the label is visible. OSC 8 `file://` targets use the same file action menu after
+percent-decoding an absolute path on the connected Herdr filesystem, not the
+browser's machine. Only empty or `localhost` authorities are accepted; network
+hosts/UNC paths, credentials, queries/fragments, malformed encoding, and control
+characters are rejected. Other URI schemes are not opened.
+
+Older servers, missing methods, and lookup failures keep local HTTP and
+workspace-file detection, including wrapped/indented file continuations; local
+URL detection does not guess a missing wrapped tail. Asynchronous replies and
+activation callbacks recheck presentation, buffer, text/cells, dimensions,
+scrolling, navigation, and connection identity. New output invalidates old link
+actions even while selection holds the previous repaint. Once an explicit click
+captures a file path, its menu and keyboard focus survive ordinary program output;
+connection, workspace, and navigation changes still dismiss it. Hover never
+activates links.
+
+Touch uses the existing 450 ms long-press selection toolbar. A separate lookup
+uses the original touched display cell, not the selected word, without changing
+the desktop hover request generation. It probes at most that one cell upstream,
+retaining bounded local file resolution. **Open link** opens synchronously from
+an explicit user gesture; **File actions** uses the same file/directory menu.
+Copy, Add comment, Done, selection handles, and presentation freeze are unchanged.
+Normal finger release lets a pending lookup finish; handle edits, cancellation,
+multitouch, scrolling, frame changes, resize, navigation, and reconnect retire it.
+OSC 8 targets take precedence over their labels; unsafe/malformed explicit targets
+and failed endpoint touch reads never fall back to a URL-looking label. Legacy
+incremental streams have no public OSC 8 cell metadata: their touch detection is
+limited to plain-text URLs and paths, not explicit OSC 8 destinations.
 
 Method/capability advertisements belong to each terminal socket, never another
 terminal or runtime. Reattachment negotiates again; browser reconnect and

@@ -67,9 +67,23 @@ macOS preset; see [other platform bindings](#keyboard-shortcuts).
 - Relay terminal OSC 52 clipboard writes. Herdr 0.9.0 follows the foreground
   recipient, not proven originating-pane ownership; see
   [clipboard compatibility](docs/DEPLOYMENT.md#herdr-compatibility).
-- `Cmd/Ctrl`-click HTTP(S) links to open safely in a new tab, or workspace-relative
-  / absolute paths to preview text, Markdown, or images. Wrapped paths remain
-  one link, including indented continuations in agent output.
+- `Cmd/Ctrl`-click HTTP(S) links to open directly in a new browser tab. On Herdr
+  0.9.1, read-only link resolution also recognizes wrapped URLs; OSC 8 links keep
+  their full destinations even when their labels are partially visible. Hover
+  underlines the complete detected link across wrapped rows while preserving
+  terminal colors. Plain URLs clipped by the Herdr viewport cannot be recovered
+  safely; see
+  [terminal link limits](docs/ARCHITECTURE.md#terminal-endpoints).
+- `Cmd/Ctrl`-click workspace-relative/absolute paths or local OSC 8 `file://` links
+  for an accessible action menu: preview files/directories, or open a directory
+  as a workspace. The menu stays open while terminal output continues. Wrapped
+  paths remain one link, including indented continuations in agent output, with
+  local detection retained for older servers.
+- On touch devices, long-press terminal output, then tap **Open link** for a web
+  link or **File actions** for a file/directory. Copy, Add comment, Done, and
+  selection handles remain available. Nothing opens until you tap an action.
+  Explicit OSC 8 destinations require endpoint frame metadata; legacy terminal
+  streams support plain-text URLs and paths.
 
 ## Workspace Inspector
 
