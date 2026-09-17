@@ -335,15 +335,16 @@ Mobile shortcuts and appearance stay in this browser, not Herdr configuration.
   inspection has the metadata limits described above.
 - Multiple browsers receive pushed events. Pause/resume yours, see client counts,
   or pause others. **Task notifications** offer independent **Agent needs input**
-  and **Task completed** switches. With [Web Push configured](docs/DEPLOYMENT.md#web-push-notifications),
-  each subscribed device receives events from connected Herdr runtimes even
-  when its page is suspended or closed, subject to platform delivery settings.
+  and **Task completed** switches. [Web Push](docs/DEPLOYMENT.md#web-push-notifications)
+  is enabled on the server by default; each subscribed device receives events
+  from connected Herdr runtimes even when its page is suspended or closed,
+  subject to platform delivery settings.
   Turning notifications off revokes that device's subscription. Clicking a
   notification focuses or opens Roamgate and returns to the relevant pane when
   its connection runtime is still current.
   On iPhone/iPad, use the HTTPS Home Screen app on iOS/iPadOS 16.4 or later and
-  grant notification permission. Unsupported browsers or unconfigured servers
-  use **Active page only** notifications; background delivery is labeled
+  grant notification permission. Unsupported browsers or unavailable server-side
+  Web Push use **Active page only** notifications; background delivery is labeled
   **Background push**. Subscription or revocation failures show a retryable error.
 - Choose light/dark/system appearance, persistent accents, and terminal themes
   per appearance mode in **Menu → Appearance → Terminal theme**. Built-ins

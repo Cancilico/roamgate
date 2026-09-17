@@ -129,7 +129,10 @@ export function createWebPushService(
     warn?: (message: string) => void;
   } = {},
 ) {
-  const subject = options.subject ?? roamgateEnv("WEB_PUSH_SUBJECT");
+  const subject =
+    options.subject ??
+    roamgateEnv("WEB_PUSH_SUBJECT") ??
+    "https://github.com/powerfooI/roamgate/issues";
   const path =
     options.path ??
     roamgateEnv("WEB_PUSH_PATH") ??
@@ -322,7 +325,7 @@ export function createWebPushService(
         return new Response("Forbidden", { status: 403, headers });
       if (!registry)
         return Response.json(
-          { error: "Web Push is not configured on this server" },
+          { error: "Web Push is unavailable on this server" },
           { status: 503, headers },
         );
       let input: unknown;
