@@ -69,8 +69,10 @@ macOS preset; see [other platform bindings](#keyboard-shortcuts).
   [clipboard compatibility](docs/DEPLOYMENT.md#herdr-compatibility).
 - `Cmd/Ctrl`-click HTTP(S) links to open directly in a new browser tab. On Herdr
   0.9.1, read-only link resolution also recognizes wrapped URLs; OSC 8 links keep
-  their full destinations even when their labels are partially visible. Plain
-  URLs clipped by the Herdr viewport cannot be recovered safely; see
+  their full destinations even when their labels are partially visible. Hover
+  underlines the complete detected link across wrapped rows while preserving
+  terminal colors. Plain URLs clipped by the Herdr viewport cannot be recovered
+  safely; see
   [terminal link limits](docs/ARCHITECTURE.md#terminal-endpoints).
 - `Cmd/Ctrl`-click workspace-relative/absolute paths or local OSC 8 `file://` links
   for an accessible action menu: preview files/directories, or open a directory

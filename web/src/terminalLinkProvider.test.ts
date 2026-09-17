@@ -413,32 +413,54 @@ describe("endpoint terminal link provider", () => {
     },
   );
 
-  test("uses pane-local cells and upstream regions for wrapped repaint URLs", async () => {
-    const f = fixture(["", "See https://example.com/", "guide"], 24);
-    const calls: number[][] = [];
-    registerTerminalLinkProvider(
-      f.term,
-      () => {},
-      undefined,
-      () => true,
-      {
-        state: () => 1,
-        resolve: async (row, col) => {
-          calls.push([row, col]);
-          return col === 0 && row === 1 ? { regions: [], url: null } : resolved;
+  test.each([0, 7])(
+    "keeps the complete upstream link range from either row at viewport %d",
+    async (viewportY) => {
+      const f = fixture(
+        [
+          ...Array<string>(viewportY).fill(""),
+          "",
+          "See https://example.com/",
+          "guide",
+        ],
+        24,
+      );
+      Object.assign(f.term.buffer.active, { viewportY });
+      const calls: number[][] = [];
+      registerTerminalLinkProvider(
+        f.term,
+        () => {},
+        undefined,
+        () => true,
+        {
+          state: () => 1,
+          resolve: async (row, col) => {
+            calls.push([row, col]);
+            return col === 0 && row === 1
+              ? { regions: [], url: null }
+              : resolved;
+          },
         },
-      },
-    );
-    expect((await f.links(2)).map((l) => [l.text, l.range])).toEqual([
-      [resolved.url, { start: { x: 5, y: 2 }, end: { x: 24, y: 2 } }],
-    ]);
-    expect((await f.links(3))[0]?.text).toBe(resolved.url);
-    expect(calls).toEqual([
-      [1, 0],
-      [1, 4],
-      [2, 0],
-    ]);
-  });
+      );
+      for (const row of [2, 3])
+        expect(
+          (await f.links(viewportY + row)).map((l) => [l.text, l.range]),
+        ).toEqual([
+          [
+            resolved.url,
+            {
+              start: { x: 5, y: viewportY + 2 },
+              end: { x: 5, y: viewportY + 3 },
+            },
+          ],
+        ]);
+      expect(calls).toEqual([
+        [1, 0],
+        [1, 4],
+        [2, 0],
+      ]);
+    },
+  );
 
   test.each(["unsupported", "failed"])(
     "retains file and safe local URL fallback when %s",

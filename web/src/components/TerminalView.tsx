@@ -125,11 +125,7 @@ import {
 } from "./TerminalFileLinkMenu";
 import { CreateWorkspaceDialog } from "./CreateWorkspaceDialog";
 import { directoryPreviewName } from "../filesystemPaths";
-import {
-  findTerminalHttpLinks,
-  sanitizeTerminalHttpUrl,
-  terminalFileUriPath,
-} from "../terminalLinks";
+import { sanitizeTerminalHttpUrl, terminalFileUriPath } from "../terminalLinks";
 import {
   createTerminalPasteRunner,
   type TerminalPasteTextareaSnapshot,
@@ -209,10 +205,6 @@ function sendBytes(
 
 const FONT_FAMILY =
   'SFMono-Regular, Menlo, Monaco, "0xProto Nerd Font Mono", "JetBrainsMonoNL Nerd Font", "MesloLGS NF", "Hack Nerd Font", "FiraCode Nerd Font", Consolas, "Liberation Mono", "Courier New", "Noto Sans Mono CJK SC", "Source Han Mono SC", "Sarasa Mono SC", "Herdr Nerd Symbols", monospace';
-const LINK_BLUE = "\x1b[94m";
-const RESET_FOREGROUND = "\x1b[39m";
-const ANSI_SEQUENCE_RE =
-  /\x1b\][\s\S]*?(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]/g;
 const CLIPBOARD_READ_TIMEOUT_MS = 2000;
 const TERMINAL_EVICTION_WINDOW_MS = 60_000;
 const TERMINAL_EVICTION_MAX_RETRIES = 3;
@@ -259,35 +251,6 @@ function terminalCellAtPoint(term: Terminal, clientX: number, clientY: number) {
 
 function terminalCellAt(term: Terminal, e: WheelEvent) {
   return terminalCellAtPoint(term, e.clientX, e.clientY);
-}
-
-function colorHttpLinks(input: string): string {
-  let output = "";
-  let index = 0;
-
-  for (const match of input.matchAll(ANSI_SEQUENCE_RE)) {
-    const start = match.index ?? 0;
-    if (start > index)
-      output += colorHttpLinksInText(input.slice(index, start));
-    output += match[0];
-    index = start + match[0].length;
-  }
-
-  if (index < input.length) output += colorHttpLinksInText(input.slice(index));
-  return output;
-}
-
-function colorHttpLinksInText(text: string): string {
-  const links = findTerminalHttpLinks(text);
-  if (links.length === 0) return text;
-  let output = "";
-  let offset = 0;
-  for (const link of links) {
-    output += text.slice(offset, link.start);
-    output += `${LINK_BLUE}${link.url}${RESET_FOREGROUND}`;
-    offset = link.end;
-  }
-  return output + text.slice(offset);
 }
 
 function isEditableElement(target: EventTarget | null) {
@@ -1085,7 +1048,7 @@ export function TerminalView({
       new TerminalEndpointPresentation(
         () => term.hasSelection() || historySelection.active,
         (text, parsed, linksChanged) =>
-          term.write(colorHttpLinks(text), () => {
+          term.write(text, () => {
             parsed();
             if (!terminalEffectDisposed && linksChanged)
               term.refresh(0, term.rows - 1);

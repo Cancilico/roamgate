@@ -420,26 +420,33 @@ export function registerTerminalLinkProvider(
         for (const link of resolved) {
           if (!link.url || sanitizeTerminalHttpUrl(link.url) !== link.url)
             continue;
-          for (const region of link.regions) {
-            const y = region.row + (viewport ?? 0) + 1;
-            if (y !== bufferLineNumber) continue;
-            accepted.push({
-              text: link.url,
-              target: { kind: "url", value: link.url },
-              hover,
-              range: {
-                start: { x: region.start_col + 1, y },
-                end: { x: region.end_col + 1, y },
+          if (!link.regions.some((region) => region.row === row)) continue;
+          // The bridge validates contiguous regions. Keep one logical range so
+          // xterm underlines every wrapped row, whichever row is hovered.
+          const first = link.regions[0]!;
+          const last = link.regions[link.regions.length - 1]!;
+          accepted.push({
+            text: link.url,
+            target: { kind: "url", value: link.url },
+            hover,
+            range: {
+              start: {
+                x: first.start_col + 1,
+                y: first.row + (viewport ?? 0) + 1,
               },
-              activate(event) {
-                event.preventDefault();
-                if (isCurrent() && terminalLinkModifierMatches(event)) {
-                  term.clearSelection?.();
-                  window.open(link.url!, "_blank", "noopener,noreferrer");
-                }
+              end: {
+                x: last.end_col + 1,
+                y: last.row + (viewport ?? 0) + 1,
               },
-            });
-          }
+            },
+            activate(event) {
+              event.preventDefault();
+              if (isCurrent() && terminalLinkModifierMatches(event)) {
+                term.clearSelection?.();
+                window.open(link.url!, "_blank", "noopener,noreferrer");
+              }
+            },
+          });
         }
         callback(accepted.length ? accepted : undefined);
       };

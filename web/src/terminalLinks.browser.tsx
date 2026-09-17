@@ -565,31 +565,61 @@ async function run() {
   for (const scale of [100, 125]) {
     render(scale);
     await settle();
-    const url = `https://example.com/${"a".repeat(term.cols)}/guide`;
+    const url = `https://example.com/${"a".repeat(term.cols * 2)}/guide`;
     const rows = [
       "",
       `界e\u0301 ${url.slice(0, term.cols - 4)}`,
-      url.slice(term.cols - 4),
+      url.slice(term.cols - 4, term.cols * 2 - 4),
+      url.slice(term.cols * 2 - 4),
     ];
     target = {
       url,
       regions: [
         { row: 1, start_col: 4, end_col: term.cols - 1 },
-        { row: 2, start_col: 0, end_col: rows[2]!.length - 1 },
+        { row: 2, start_col: 0, end_col: term.cols - 1 },
+        { row: 3, start_col: 0, end_col: rows[3]!.length - 1 },
       ],
     };
-    await frame(rows);
-    const before = opened.length;
-    await hover(2, 2);
-    check(opened.length, before, "hover never activates");
-    await click(2, 2);
-    check(opened[opened.length - 1], url, `wrapped target at scale ${scale}`);
+    await frame([
+      rows[0]!,
+      `\x1b[31m${rows[1]}`,
+      rows[2]!,
+      `${rows[3]}\x1b[39m trailing text`,
+    ]);
     check(
-      calls.filter((c) => c.method === "terminal.link.resolve").slice(-1)[0]
-        ?.params.row,
-      2,
-      "pane-local continuation row",
+      [1, 2, 3].map((row) =>
+        term.buffer.active
+          .getLine(row)
+          ?.getCell(row === 1 ? 4 : 0)
+          ?.getFgColor(),
+      ),
+      [1, 1, 1],
+      "wrapped links preserve the application's foreground on every row",
     );
+    const underlined = () =>
+      [...term.element!.querySelectorAll<HTMLElement>(".xterm-rows > div")].map(
+        (row) =>
+          [...row.querySelectorAll<HTMLElement>("span")]
+            .filter((span) => span.style.textDecoration === "underline")
+            .map((span) => span.textContent)
+            .join(""),
+      );
+    for (const row of [1, 2, 3]) {
+      const before = opened.length;
+      await hover(row, row === 1 ? 6 : 2);
+      check(opened.length, before, "hover never activates");
+      check(
+        underlined().filter(Boolean),
+        [url.slice(0, term.cols - 4), rows[2], rows[3]],
+        `all link rows underlined from row ${row} at scale ${scale}`,
+      );
+      await click(row, row === 1 ? 6 : 2, false);
+      check(opened.length, before + 1, "each wrapped row remains clickable");
+      check(opened[opened.length - 1], url, `wrapped target at scale ${scale}`);
+    }
+    await move(term.rows - 1, term.cols - 1);
+    await settle();
+    check(underlined().some(Boolean), false, "leaving clears every link row");
     check(
       (await links(2))[0]?.range.start.x,
       5,
