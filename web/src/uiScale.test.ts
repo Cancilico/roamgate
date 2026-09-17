@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { waitForChromePort } from "./browserChrome";
 
 const chrome =
   Bun.env.CHROME_BIN ||
@@ -95,10 +96,11 @@ test.skipIf(!chrome).each([
         ],
         { stdout: "ignore", stderr: Bun.file(errorOutput) },
       );
-      const portFile = join(dir, "profile", "DevToolsActivePort");
-      for (let i = 0; i < 200 && !existsSync(portFile); i++)
-        await Bun.sleep(25);
-      const port = (await readFile(portFile, "utf8")).split("\n")[0];
+      const port = await waitForChromePort(
+        child,
+        join(dir, "profile"),
+        errorOutput,
+      );
       const targets = (await (
         await fetch(`http://127.0.0.1:${port}/json/list`)
       ).json()) as { type: string; webSocketDebuggerUrl: string }[];
