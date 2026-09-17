@@ -32,6 +32,7 @@ import {
   Info,
   LoaderCircle,
   MessageSquareText,
+  Minimize2,
   MoreHorizontal,
   PanelTop,
   SquarePen,
@@ -3229,6 +3230,19 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {zenMode && !mobile ? (
+        <button
+          type="button"
+          className="zen-exit"
+          title={shortcutTitle("Exit Zen mode", "zen.toggle")}
+          aria-label={shortcutTitle("Exit Zen mode", "zen.toggle")}
+          onClick={() => applyZenMode(false)}
+        >
+          <Minimize2 size={13} />
+          <span>Exit Zen</span>
+        </button>
+      ) : null}
 
       <nav
         className="mobile-nav"

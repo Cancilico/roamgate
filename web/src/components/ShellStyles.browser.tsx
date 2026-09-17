@@ -1,6 +1,7 @@
 import "../styles/tokens.css";
 import "../styles/base.css";
 import "../styles/layout/app.css";
+import "../styles/layout/topbar.css";
 import "./WorktreeLifecycleDialog.css";
 import "./AnnotationPanel.css";
 
@@ -41,6 +42,39 @@ async function run() {
   const header = fixture.querySelector<HTMLElement>(".lifecycle-head")!;
   const title = header.querySelector("h2")!;
   try {
+    const zen = document.createElement("div");
+    zen.className = "app zen";
+    zen.style.cssText =
+      "position:fixed;top:100px;left:0;width:600px;height:100px";
+    zen.innerHTML = `<header class="topbar"><button>Menu</button></header>
+      <button class="zen-exit">Exit Zen</button>`;
+    fixture.append(zen);
+    const menu = zen.querySelector<HTMLButtonElement>(".topbar button")!;
+    const exit = zen.querySelector<HTMLButtonElement>(".zen-exit")!;
+    for (const theme of ["dark", "light"]) {
+      document.documentElement.dataset.theme = theme;
+      menu.focus();
+      await settle();
+      check(
+        getComputedStyle(exit).visibility === "hidden",
+        `${theme}: revealed topbar must hide the Zen exit from keyboard navigation`,
+      );
+      exit.focus();
+      check(
+        document.activeElement === menu,
+        `${theme}: an invisible Zen exit must not accept focus`,
+      );
+      menu.blur();
+      await settle();
+      exit.focus();
+      check(
+        document.activeElement === exit &&
+          getComputedStyle(exit).visibility === "visible",
+        `${theme}: visible Zen exit must remain keyboard-focusable`,
+      );
+      exit.blur();
+    }
+    zen.remove();
     for (const theme of ["dark", "light"]) {
       document.documentElement.dataset.theme = theme;
       for (const layout of ["desktop", "mobile"]) {
