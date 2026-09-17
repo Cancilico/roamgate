@@ -468,13 +468,18 @@ roamgate --host 0.0.0.0 --port 8443 \
 
 1. Serve Roamgate over trusted HTTPS (native TLS or a reverse proxy). On
    iOS/iPadOS 16.4 or later, install and open the Home Screen app.
-2. Set `ROAMGATE_WEB_PUSH_SUBJECT` to an operator contact, such as
-   `mailto:operator@example.com` or an HTTPS contact URL, and restart Roamgate.
-   For managed services, put this in the service environment file.
-3. Enable **Task notifications** in each device's menu and grant permission.
+2. Enable **Task notifications** in each device's menu and grant permission.
    **Background push** confirms enrollment. Choose **Agent needs input** and
    **Task completed** independently. Existing local-only users should toggle
    notifications off and on once to enroll.
+
+Server-side Web Push is enabled by default, but each device must grant permission
+and enroll before it receives notifications. The VAPID contact defaults to
+`https://github.com/powerfooI/roamgate/issues`; this is a contact identifier, not a
+notification destination. Optionally set `ROAMGATE_WEB_PUSH_SUBJECT` to an operator
+contact such as `mailto:operator@example.com` or an HTTPS contact URL. An explicitly
+empty value disables server-side Web Push. Restart Roamgate after changing it;
+for managed services, put the value in the service environment file.
 
 The server generates a VAPID key pair and saves it with device subscriptions in
 `~/.config/roamgate/web-push.json` (`%APPDATA%\\roamgate\\web-push.json` on Windows).
@@ -503,11 +508,14 @@ Expired subscriptions are removed on push-service HTTP 404/410 responses.
 Turning **Task notifications** off removes this device from the server before
 unsubscribing the browser. If revocation fails, reconnect and retry; browser/OS
 notification permission can also be revoked immediately. Already accepted
-messages may still arrive. Removing the subject disables server delivery for
-all devices; keep the private registry if you intend to re-enable it.
+messages may still arrive. Setting `ROAMGATE_WEB_PUSH_SUBJECT=` and restarting
+disables server delivery for all devices; keep the private registry if you intend
+to re-enable it. Removing the variable restores the default contact and enables
+server delivery again.
 
-Without server configuration or browser Web Push support, **Active page only**
-uses local Service Worker notifications (or a page-notification fallback).
+When server-side Web Push is disabled/unavailable or the browser lacks support,
+**Active page only** uses local Service Worker notifications (or a
+page-notification fallback).
 Do not rely on this fallback while the app is suspended or closed. Push payloads
 are encrypted in transit to the device and contain the agent name and routing
 IDs, not terminal output. They can be displayed on the device's lock screen.

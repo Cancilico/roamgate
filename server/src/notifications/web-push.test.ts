@@ -1,6 +1,7 @@
 import { expect, mock, test } from "bun:test";
 import { createECDH, randomBytes } from "node:crypto";
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -79,6 +80,63 @@ function fixture(
     },
   };
 }
+
+test.each([
+  [undefined, "https://github.com/powerfooI/roamgate/issues"],
+  ["mailto:operator@example.com", "mailto:operator@example.com"],
+  ["", null],
+  ["invalid-subject", null],
+])(
+  "push subject %s uses the default, override, or disables delivery",
+  async (subject, expected) => {
+    const previous = process.env.ROAMGATE_WEB_PUSH_SUBJECT;
+    const legacy = process.env.HERDR_GUI_WEB_PUSH_SUBJECT;
+    const dir = mkdtempSync(join(tmpdir(), "roamgate-push-default-"));
+    const path = join(dir, "web-push.json");
+    const send = mock(async () => ({ statusCode: 201, body: "", headers: {} }));
+    let service: ReturnType<typeof createWebPushService> | undefined;
+    try {
+      delete process.env.HERDR_GUI_WEB_PUSH_SUBJECT;
+      if (subject === undefined) delete process.env.ROAMGATE_WEB_PUSH_SUBJECT;
+      else process.env.ROAMGATE_WEB_PUSH_SUBJECT = subject;
+      service = createWebPushService({ path, send });
+      const config = await (await service.handle(request())).json();
+      expect(config.available).toBe(expected !== null);
+      expect(existsSync(path)).toBe(expected !== null);
+      expect(send).not.toHaveBeenCalled();
+      if (expected !== null) {
+        service.notify(task, () => true);
+        expect(send).not.toHaveBeenCalled();
+        expect((await service.handle(request("POST", device()))).status).toBe(
+          200,
+        );
+        service.notify(task, () => true);
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.any(String),
+          expect.objectContaining({
+            vapidDetails: expect.objectContaining({ subject: expected }),
+          }),
+        );
+      } else {
+        expect(config.publicKey).toBeNull();
+        expect((await service.handle(request("POST", device()))).status).toBe(
+          503,
+        );
+        service.notify(task, () => true);
+        expect(send).not.toHaveBeenCalled();
+      }
+    } finally {
+      service?.stop();
+      if (previous === undefined) delete process.env.ROAMGATE_WEB_PUSH_SUBJECT;
+      else process.env.ROAMGATE_WEB_PUSH_SUBJECT = previous;
+      if (legacy === undefined) delete process.env.HERDR_GUI_WEB_PUSH_SUBJECT;
+      else process.env.HERDR_GUI_WEB_PUSH_SUBJECT = legacy;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 test("rejects SSRF destinations, credentials, malformed keys and oversized endpoints", () => {
   const authenticated = new URL("https://fcm.googleapis.com/a");
