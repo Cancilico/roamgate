@@ -193,6 +193,10 @@ test.skipIf(!chrome).each([
           maxTouchPoints: 5,
         });
       await cdp("Page.navigate", { url: server.url.href });
+      // Navigation can acknowledge before the new document's viewport is parsed.
+      await waitFor(
+        `location.href === ${JSON.stringify(server.url.href)} && document.readyState !== "loading"`,
+      );
       expect(await evaluate("innerWidth")).toBe(width);
       if (fixture === "configuration") {
         expect(heldChunks.size).toBe(2);
