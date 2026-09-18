@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { GitDiffEntry, GitDiffFile } from "../types";
+import { expandDiffEntryOnActivate } from "./diffContentState";
 import {
   diffContentEntries,
   diffHunkTargets,
@@ -23,6 +24,26 @@ function diffFile(path: string, diff: string): GitDiffFile {
     truncated: false,
   };
 }
+
+describe("expandDiffEntryOnActivate", () => {
+  test("marks a collapsed entry as expanded", () => {
+    const current = new Map([["unstaged:a.ts", true]]);
+    const next = expandDiffEntryOnActivate(current, "unstaged:a.ts");
+    expect(next.get("unstaged:a.ts")).toBe(false);
+  });
+
+  test("keeps the same map when the entry is already expanded", () => {
+    const current = new Map([["unstaged:a.ts", false]]);
+    expect(expandDiffEntryOnActivate(current, "unstaged:a.ts")).toBe(current);
+  });
+
+  test("preserves other entries and tolerates an empty state", () => {
+    const current = new Map([["unstaged:b.ts", true]]);
+    const next = expandDiffEntryOnActivate(current, "unstaged:a.ts");
+    expect(next.get("unstaged:b.ts")).toBe(true);
+    expect(expandDiffEntryOnActivate(undefined, "unstaged:a.ts").size).toBe(1);
+  });
+});
 
 describe("diffContentEntries", () => {
   test("keeps every summary entry even when only one diff is loaded", () => {

@@ -292,10 +292,11 @@ File operations and previews work locally and over SSH.
   independently for desktop/mobile. Search with `Cmd/Ctrl+F`, Enter/Shift+Enter,
   or previous/next controls. Text is syntax-highlighted; images have previews.
 - Jump to File Explorer from a diff. Working-tree context menus (right-click,
-  long-press, or keyboard menu key) offer open, copy relative/absolute path, and
-  status-matched stage, unstage, mark resolved, discard unstaged, or delete
-  untracked actions, with destructive-action confirmation.
-- **More Git actions** (`…`, beside Refresh) offers Stage All, Unstage All,
+  long-press, or keyboard menu key) on files and folders offer open, copy
+  relative/absolute path, and status-matched stage, unstage, mark resolved,
+  discard unstaged, or delete untracked actions, with destructive-action
+  confirmation. Folder menus apply those actions to every matching file under
+  the folder. The same menus carry repository-wide Stage All, Unstage All,
   Discard All Unstaged, and Delete All Untracked with affected-file counts.
 
 Scope, view mode, wrapping, and recent selection persist per checkout/browser.

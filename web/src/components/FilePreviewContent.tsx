@@ -451,10 +451,11 @@ export function FilePreviewContent({
             <button
               type="button"
               className="file-preview-back"
+              title={backAction.label}
+              aria-label={backAction.label}
               onClick={backAction.onClick}
             >
-              <ChevronLeft size={13} aria-hidden="true" />
-              {backAction.label}
+              <ChevronLeft size={14} aria-hidden="true" />
             </button>
           ) : null}
           <div className="file-preview-title" title={entry?.name}>
