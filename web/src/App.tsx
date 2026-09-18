@@ -215,6 +215,8 @@ type TerminalViewProps = {
   agentHistoryOpen?: boolean;
   onAgentHistoryOpenChange?: (open: boolean) => void;
   onOpenWorkspaceFile?: (request: TerminalWorkspaceFileRequest) => void;
+  zenMode?: boolean;
+  onExitZenMode?: () => void;
 };
 
 function TerminalLoadingFallback({
@@ -837,6 +839,8 @@ function TerminalPaneLayout({
   agentHistoryOpen,
   onAgentHistoryOpenChange,
   onOpenWorkspaceFile,
+  zenMode,
+  onExitZenMode,
 }: {
   terminalTheme: ITheme;
   uiScale: number;
@@ -847,6 +851,8 @@ function TerminalPaneLayout({
   agentHistoryOpen: boolean;
   onAgentHistoryOpenChange: (open: boolean) => void;
   onOpenWorkspaceFile: (request: TerminalWorkspaceFileRequest) => void;
+  zenMode: boolean;
+  onExitZenMode: () => void;
 }) {
   const s = useStoreSelector(
     (state) => ({
@@ -897,6 +903,8 @@ function TerminalPaneLayout({
         agentHistoryOpen={agentHistoryOpen}
         onAgentHistoryOpenChange={onAgentHistoryOpenChange}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
+        zenMode={zenMode}
+        onExitZenMode={onExitZenMode}
       />
     );
   }
@@ -953,6 +961,8 @@ function TerminalPaneLayout({
           agentHistoryOpen={agentHistoryOpen}
           onAgentHistoryOpenChange={onAgentHistoryOpenChange}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          zenMode={zenMode}
+          onExitZenMode={onExitZenMode}
         />
       </div>
     );
@@ -1059,6 +1069,8 @@ function TerminalPaneLayout({
               agentHistoryOpen={isActive ? agentHistoryOpen : false}
               onAgentHistoryOpenChange={onAgentHistoryOpenChange}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
+              zenMode={isActive ? zenMode : false}
+              onExitZenMode={onExitZenMode}
             />
           </div>
         );
@@ -3234,7 +3246,7 @@ export default function App() {
       {zenMode && !mobile ? (
         <button
           type="button"
-          className="zen-exit"
+          className="zen-island"
           title={shortcutTitle("Exit Zen mode", "zen.toggle")}
           aria-label={shortcutTitle("Exit Zen mode", "zen.toggle")}
           onClick={() => applyZenMode(false)}
@@ -3594,6 +3606,8 @@ export default function App() {
                   agentHistoryOpen={agentHistoryOpen}
                   onAgentHistoryOpenChange={setAgentHistoryInspectorOpen}
                   onOpenWorkspaceFile={handleTerminalWorkspaceFile}
+                  zenMode={zenMode && !mobile}
+                  onExitZenMode={() => applyZenMode(false)}
                 />
               </div>
               {inspectorState?.open && !inspectorState.expanded ? (

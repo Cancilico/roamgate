@@ -15,9 +15,9 @@ A Web/PWA client for a running [Herdr](https://herdr.dev) server.
   absolute path opens the file.
 - Toggle **Zen mode** (`Cmd+Shift+Z` on macOS, `Ctrl+Alt+Z` elsewhere) to hide
   the topbar, tab strip, and sidebar and run the terminal flush to the window.
-  A floating **Exit Zen** button stays in the top-left corner, hovering the
-  top edge slides the topbar back, and it stays while one of its menus is
-  open. The sidebar still toggles inside Zen and returns to its prior state on
+  A small **Exit Zen** tab hangs from the top edge center; hovering it (or
+  the top edge) slides the topbar back, and it stays while one of its menus
+  is open. The sidebar still toggles inside Zen and returns to its prior state on
   exit; split layouts keep pane borders. Desktop only, stored in this browser;
   mobile keeps its floating control collapse.
 
