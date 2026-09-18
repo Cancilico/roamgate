@@ -60,6 +60,7 @@ import { ConfirmDialog } from "./ModalDialogs";
 import "./DiffViewerPanel.css";
 
 export type ActiveDiffSelection = {
+  selectionRevision?: number;
   entry: GitDiffEntry | null;
   file: GitDiffFile | null;
   loading: boolean;
@@ -902,6 +903,7 @@ export const DiffViewerPanel = forwardRef<
       cacheResourceKey,
     ),
   );
+  const selectionRevisionRef = useRef(0);
   const selectedEntryKeyRef = useRef(
     cache.selected ? diffEntryKey(cache.selected) : "",
   );
@@ -1031,8 +1033,15 @@ export const DiffViewerPanel = forwardRef<
     (
       source: DiffCache = cache,
       patch: Partial<ActiveDiffSelection> = {},
-    ): ActiveDiffSelection =>
-      buildActiveDiffSelection(source, patch, fileLoadingKey, summaryLoading),
+    ): ActiveDiffSelection => ({
+      ...buildActiveDiffSelection(
+        source,
+        patch,
+        fileLoadingKey,
+        summaryLoading,
+      ),
+      selectionRevision: selectionRevisionRef.current,
+    }),
     [cache, fileLoadingKey, summaryLoading],
   );
 
@@ -1137,6 +1146,7 @@ export const DiffViewerPanel = forwardRef<
       cacheResourceKey,
     );
     const revision = diffCacheRevision(cacheKey);
+    if (meta.userInitiated) selectionRevisionRef.current += 1;
     selectedEntryKeyRef.current = key;
     setCache((current) => {
       const next = beginDiffFileSelection(current, entry);
@@ -1494,12 +1504,12 @@ export const DiffViewerPanel = forwardRef<
     if (!targets.length) return;
     const execute = async () => {
       if (menu.directory && targets.length > 1) {
-        const completed = await store.runGitFileActionBatch(
+        await store.runGitFileActionBatch(
           actionWorkspaceId,
           item.action,
           targets,
         );
-        if (!completed) return;
+        // A failed batch can still have changed earlier files.
       } else {
         const result = await store.runGitFileAction(
           actionWorkspaceId,
@@ -1569,7 +1579,13 @@ export const DiffViewerPanel = forwardRef<
               paddingLeft: DIFF_TREE_BASE_INDENT + depth * DIFF_TREE_INDENT,
             }}
             key={child.path}
-            onClick={() => toggleDir(child.path)}
+            onClick={() => {
+              if (longPressTriggeredRef.current) {
+                longPressTriggeredRef.current = false;
+                return;
+              }
+              toggleDir(child.path);
+            }}
             onContextMenu={(event) => {
               if (diffScope !== "working") return;
               event.preventDefault();
@@ -1809,9 +1825,11 @@ export const DiffViewerPanel = forwardRef<
           header={{ title: contextMenu.path, subtitle: "Git" }}
           groups={[
             {
-              label: contextMenu.entries.length ? "File" : "Folder",
+              label: contextMenu.directory ? "Folder" : "File",
               items: [
-                ...(onOpenFile && contextMenu.entries[0]
+                ...(!contextMenu.directory &&
+                onOpenFile &&
+                contextMenu.entries[0]
                   ? [
                       {
                         key: "open",

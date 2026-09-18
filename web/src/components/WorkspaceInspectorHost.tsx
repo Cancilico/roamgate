@@ -743,6 +743,7 @@ export function WorkspaceInspectorHost({
                 >
                   <DiffContentView
                     key={contentResourceKey}
+                    selectionRevision={diffSelection.selectionRevision}
                     entry={diffSelection.entry}
                     file={diffSelection.file}
                     loading={diffSelection.loading}

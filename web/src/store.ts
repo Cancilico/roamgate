@@ -2661,19 +2661,24 @@ export const store = {
     entries: Pick<GitDiffEntry, "path" | "old_path" | "mtime_ms" | "size">[],
   ) {
     const label = gitFileActionLabel(gitAction);
+    let completed = 0;
     return action(
       async (lease) => {
-        let completed = 0;
-        for (const entry of entries) {
-          await lease.client.call("git.file_action", {
-            workspace_id: workspaceId,
-            action: gitAction,
-            path: entry.path,
-            old_path: entry.old_path,
-            mtime_ms: entry.mtime_ms,
-            size: entry.size,
-          });
-          completed += 1;
+        try {
+          for (const entry of entries) {
+            await lease.client.call("git.file_action", {
+              workspace_id: workspaceId,
+              action: gitAction,
+              path: entry.path,
+              old_path: entry.old_path,
+              mtime_ms: entry.mtime_ms,
+              size: entry.size,
+            });
+            completed += 1;
+          }
+        } catch (error) {
+          if (completed && leaseIsCurrent(lease)) void refreshNow(lease);
+          throw error;
         }
         setForConnection(lease, {
           notice: {
@@ -2691,7 +2696,7 @@ export const store = {
         failureNotice: (error) => ({
           kind: "error",
           message: `${label} failed`,
-          detail: error.message,
+          detail: `${completed} of ${entries.length} files completed. ${error.message}`,
           detailMode: "text",
         }),
       },

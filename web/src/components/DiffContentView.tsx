@@ -726,6 +726,7 @@ function areDiffFileSectionPropsEqual(
     previous.options === next.options &&
     previous.currentSearchMatch === next.currentSearchMatch &&
     previous.embedded === next.embedded &&
+    previous.mobile === next.mobile &&
     previous.annotations === next.annotations &&
     previous.annotationSelectionActive === next.annotationSelectionActive &&
     previous.onToggle === next.onToggle &&
@@ -737,6 +738,7 @@ function areDiffFileSectionPropsEqual(
 }
 
 export function DiffContentView({
+  selectionRevision = 0,
   entry,
   file,
   loading,
@@ -757,6 +759,7 @@ export function DiffContentView({
   embedded = false,
   backAction,
 }: {
+  selectionRevision?: number;
   entry: GitDiffEntry | null;
   file: GitDiffFile | null;
   loading: boolean;
@@ -811,19 +814,14 @@ export function DiffContentView({
   const effectiveViewMode: DiffViewMode = mobile ? "unified" : viewMode;
   const wrapEnabled = mobile ? mobileWrap : desktopWrap;
   const activeEntryKey = entry ? diffEntryKey(entry) : "";
-  // Selecting a file is an explicit request to view it: expand it even if it
-  // was collapsed manually before or auto-collapsed (generated, large).
-  const previousActiveEntryKeyRef = useRef(activeEntryKey);
   useEffect(() => {
-    if (previousActiveEntryKeyRef.current === activeEntryKey) return;
-    previousActiveEntryKeyRef.current = activeEntryKey;
     if (!activeEntryKey) return;
     setManualCollapseStates((current) => {
       const next = expandDiffEntryOnActivate(current, activeEntryKey);
       if (next !== current) writeDiffCollapseState(resourceKey, next);
       return next;
     });
-  }, [activeEntryKey, resourceKey]);
+  }, [activeEntryKey, resourceKey, selectionRevision]);
   const filesByKey = useMemo(() => {
     const merged = { ...files };
     if (entry && file) merged[diffEntryKey(entry)] = file;
@@ -1220,7 +1218,7 @@ export function DiffContentView({
   );
 
   useEffect(() => {
-    if (embedded) return;
+    if (embedded || mobile) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || document.querySelector(".shortcut-modal"))
         return;
@@ -1235,7 +1233,7 @@ export function DiffContentView({
     window.addEventListener("keydown", onKey, { capture: true });
     return () =>
       window.removeEventListener("keydown", onKey, { capture: true });
-  }, [embedded, focusSearch]);
+  }, [embedded, mobile, focusSearch]);
 
   const diffList = visibleEntries.length ? (
     <Virtualizer
@@ -1284,7 +1282,11 @@ export function DiffContentView({
       aria-label={embedded ? "File changes" : "Diff Viewer content"}
       tabIndex={-1}
       onKeyDownCapture={(e) => {
-        if (!embedded && shortcutMatches(e.nativeEvent, "preview.search")) {
+        if (
+          !embedded &&
+          !mobile &&
+          shortcutMatches(e.nativeEvent, "preview.search")
+        ) {
           if (isEditableSearchTarget(e.target)) return;
           e.preventDefault();
           e.stopPropagation();
