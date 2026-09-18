@@ -2655,6 +2655,54 @@ export const store = {
     );
   },
 
+  runGitFileActionBatch(
+    workspaceId: string,
+    gitAction: GitFileAction,
+    entries: Pick<GitDiffEntry, "path" | "old_path" | "mtime_ms" | "size">[],
+  ) {
+    const label = gitFileActionLabel(gitAction);
+    let completed = 0;
+    return action(
+      async (lease) => {
+        try {
+          for (const entry of entries) {
+            await lease.client.call("git.file_action", {
+              workspace_id: workspaceId,
+              action: gitAction,
+              path: entry.path,
+              old_path: entry.old_path,
+              mtime_ms: entry.mtime_ms,
+              size: entry.size,
+            });
+            completed += 1;
+          }
+        } catch (error) {
+          if (completed && leaseIsCurrent(lease)) void refreshNow(lease);
+          throw error;
+        }
+        setForConnection(lease, {
+          notice: {
+            kind: "success",
+            message: `${gitFileActionSuccessMessage(gitAction)} (${
+              completed === 1 ? "1 file" : `${completed} files`
+            })`,
+            autoDismissMs: 5000,
+          },
+        });
+        return completed;
+      },
+      {
+        refresh: "immediate",
+        failureNotice: (error) => ({
+          kind: "error",
+          message: `${label} failed`,
+          detail: `${completed} of ${entries.length} files completed. ${error.message}`,
+          detailMode: "text",
+        }),
+      },
+    );
+  },
+
   runGitRepoAction(
     workspaceId: string,
     gitAction: GitRepoAction,

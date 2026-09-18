@@ -25,6 +25,8 @@ test.skipIf(!chrome).each([
   [390, 1, "terminalLinks"],
   [320, 1.5, "terminalLinks"],
   [1300, 1, "terminalLinkProvider"],
+  [1300, 1, "diffViewer"],
+  [390, 1, "diffViewer"],
 ])(
   "browser interactions preserve layout and input (width %d, DPR %d, %s)",
   async (width, deviceScale, fixture) => {
@@ -191,6 +193,10 @@ test.skipIf(!chrome).each([
           maxTouchPoints: 5,
         });
       await cdp("Page.navigate", { url: server.url.href });
+      // Navigation can acknowledge before the new document's viewport is parsed.
+      await waitFor(
+        `location.href === ${JSON.stringify(server.url.href)} && document.readyState !== "loading"`,
+      );
       expect(await evaluate("innerWidth")).toBe(width);
       if (fixture === "configuration") {
         expect(heldChunks.size).toBe(2);

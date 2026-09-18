@@ -109,8 +109,9 @@
 
 /* Zen mode leaves only the terminal on screen. The topbar keeps a thin edge
    so the connection switcher, command menu, and settings stay reachable with
-   the pointer without leaving Zen; the shortcut and the Appearance switch
-   remain the keyboard and menu paths back. */
+   the pointer without leaving Zen; the exit button lives at the left of the
+   pane toolbar, and the shortcut and the Appearance switch remain the
+   keyboard and menu paths back. */
 .app.zen {
   position: relative;
 }
@@ -122,57 +123,35 @@
   padding: 6px 0 0;
 }
 
-/* Zen is easy to enter by accident through the shortcut, so a visible and
-   keyboard-focusable exit button floats over the terminal corner. It sits on
-   the left because every pane keeps its hover toolbar at the top right; it
-   stays translucent until hovered and yields the corner while the revealed
-   topbar occupies it. */
-.zen-exit {
+/* Zen is easy to enter by accident through the shortcut, so a small tab
+   hangs flush from the top edge center holding the exit button. The corner
+   spots stay free for content and pane toolbars; the tab doubles as a pull
+   handle for the hidden topbar (see topbar.css) and floats above the
+   revealed topbar, whose center column is empty. */
+.zen-island {
   position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 119;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 121;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  padding: 5px 12px 6px;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
   box-shadow: var(--shadow-lg);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  opacity: 0.75;
-  transition:
-    opacity 160ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
 }
 
-.zen-exit:hover,
-.zen-exit:focus-visible {
-  opacity: 1;
+.zen-island:hover,
+.zen-island:focus-visible {
   color: var(--text);
-}
-
-/* The revealed topbar covers the same corner; keep a single exit path there
-   instead of stacking the floating button over the topbar controls. */
-.app.zen .topbar:hover ~ .zen-exit,
-.app.zen .topbar:focus-within ~ .zen-exit,
-.app.zen .topbar:has([data-state="open"]) ~ .zen-exit {
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .zen-exit {
-    transition: none;
-  }
 }
 
 .pane-jump-backdrop {

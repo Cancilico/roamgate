@@ -44,36 +44,32 @@ async function run() {
   try {
     const zen = document.createElement("div");
     zen.className = "app zen";
-    zen.style.cssText =
-      "position:fixed;top:100px;left:0;width:600px;height:100px";
-    zen.innerHTML = `<header class="topbar"><button>Menu</button></header>
-      <button class="zen-exit">Exit Zen</button>`;
+    zen.innerHTML = `<header class="topbar"></header>
+      <button class="zen-island">Exit Zen</button>`;
     fixture.append(zen);
-    const menu = zen.querySelector<HTMLButtonElement>(".topbar button")!;
-    const exit = zen.querySelector<HTMLButtonElement>(".zen-exit")!;
-    for (const theme of ["dark", "light"]) {
-      document.documentElement.dataset.theme = theme;
-      menu.focus();
-      await settle();
-      check(
-        getComputedStyle(exit).visibility === "hidden",
-        `${theme}: revealed topbar must hide the Zen exit from keyboard navigation`,
-      );
-      exit.focus();
-      check(
-        document.activeElement === menu,
-        `${theme}: an invisible Zen exit must not accept focus`,
-      );
-      menu.blur();
-      await settle();
-      exit.focus();
-      check(
-        document.activeElement === exit &&
-          getComputedStyle(exit).visibility === "visible",
-        `${theme}: visible Zen exit must remain keyboard-focusable`,
-      );
-      exit.blur();
-    }
+    const zenTopbar = zen.querySelector<HTMLElement>(".topbar")!;
+    const island = zen.querySelector<HTMLButtonElement>(".zen-island")!;
+    check(
+      getComputedStyle(island).position === "fixed" &&
+        getComputedStyle(island).top === "0px" &&
+        Number(getComputedStyle(island).zIndex) >
+          Number(getComputedStyle(zenTopbar).zIndex),
+      "zen island must hang flush from the top edge above the revealed topbar",
+    );
+    island.focus();
+    // The reveal animates transform over 150ms; wait it out before measuring.
+    await Promise.race([
+      new Promise((resolve) =>
+        zenTopbar.addEventListener("transitionend", resolve, { once: true }),
+      ),
+      new Promise((resolve) => setTimeout(resolve, 300)),
+    ]);
+    check(
+      getComputedStyle(zenTopbar).transform === "none",
+      "focusing the zen island must reveal the topbar",
+    );
+    island.blur();
+    await settle();
     zen.remove();
     for (const theme of ["dark", "light"]) {
       document.documentElement.dataset.theme = theme;
