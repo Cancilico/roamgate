@@ -126,7 +126,7 @@
               >Herdr</a
             >
           </div>
-          <h1>Your Herdr workspace, <span>in any browser.</span></h1>
+          <h1>Your agents.<br /><span>Anywhere you work.</span></h1>
           <p class="hero-lede">
             <a
               href="https://herdr.dev"
@@ -134,9 +134,9 @@
               rel="noopener noreferrer"
               >Herdr</a
             >
-            keeps the terminals alive. Roamgate turns the whole herd into a
-            fast, visual workspace for terminals, sessions, files, diffs, and
-            worktrees from any modern browser.
+            keeps your agents running. Roamgate brings their terminals,
+            conversations, and code changes into one browser workspace.
+            Pick up where you left off, on desktop or phone.
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#install">
@@ -202,21 +202,23 @@
           </div>
 
           <div class="floating-card agent-card" aria-hidden="true">
-            <div class="agent-avatar">&gt;_</div>
+            <div class="agent-avatar">
+              <img class="agent-logo" src="./assets/codex.svg" width="28" height="28" alt="" />
+            </div>
             <div>
-              <strong>codex</strong>
+              <strong>Codex</strong>
               <span><i></i> Working</span>
             </div>
             <b>18m</b>
           </div>
 
           <div class="floating-card task-card" aria-hidden="true">
-            <span class="task-check">
-              <svg viewBox="0 0 20 20"><path d="m5 10 3 3 7-7" /></svg>
-            </span>
+            <div class="agent-avatar">
+              <img class="agent-logo agent-logo-pi" src="./assets/pi.svg" width="28" height="28" alt="" />
+            </div>
             <div>
-              <strong>Release checks passed</strong>
-              <span>Session updated just now</span>
+              <strong>Pi is ready for your review</strong>
+              <span>Open the diff. Keep the context.</span>
             </div>
           </div>
         </div>
@@ -255,8 +257,9 @@
               <span class="feature-number">01</span>
               <h3>The whole herd, one glance.</h3>
               <p>
-                Browse workspaces, tabs, panes, and worktrees in one tree. Agent
-                status shows who is working, idle, done, or waiting for you.
+                Spot Pi, Codex, Kimi, and other recognized agents by their
+                icons. See who is working or waiting for you, then jump
+                straight into their terminal or conversation.
               </p>
               <a
                 href="https://github.com/powerfooI/roamgate/blob/main/FEATURES.md#agent-awareness-and-session-inspection"
@@ -266,20 +269,26 @@
             </div>
             <div class="agent-stack" aria-hidden="true">
               <div class="mini-agent active">
-                <span class="mini-icon">C</span>
+                <span class="mini-icon">
+                  <img class="agent-logo" src="./assets/codex.svg" width="28" height="28" alt="" />
+                </span>
                 <div>
-                  <strong>codex</strong><small>Implementing auth flow</small>
+                  <strong>Codex</strong><small>Implementing auth flow</small>
                 </div>
                 <b>Working</b>
               </div>
               <div class="mini-agent blocked">
-                <span class="mini-icon">P</span>
-                <div><strong>pi</strong><small>Needs confirmation</small></div>
+                <span class="mini-icon">
+                  <img class="agent-logo agent-logo-pi" src="./assets/pi.svg" width="28" height="28" alt="" />
+                </span>
+                <div><strong>Pi</strong><small>Needs confirmation</small></div>
                 <b>Blocked</b>
               </div>
               <div class="mini-agent done">
-                <span class="mini-icon">K</span>
-                <div><strong>kimi</strong><small>Research complete</small></div>
+                <span class="mini-icon">
+                  <img class="agent-logo" src="./assets/kimi.svg" width="28" height="28" alt="" />
+                </span>
+                <div><strong>Kimi</strong><small>Research complete</small></div>
                 <b>Done</b>
               </div>
             </div>
@@ -331,7 +340,7 @@
             </div>
           </article>
 
-          <article class="bento reveal reveal-delay" data-spotlight>
+          <article class="bento bento-worktrees reveal reveal-delay" data-spotlight>
             <div class="bento-copy">
               <span class="feature-number">04</span>
               <h3>Worktrees become a workflow.</h3>
@@ -341,16 +350,41 @@
               </p>
             </div>
             <div class="branch-map" aria-hidden="true">
-              <span class="branch-line"></span>
-              <div>
-                <i></i><strong>main</strong><small>source checkout</small>
+              <div class="branch-root">
+                <svg viewBox="0 0 24 24">
+                  <path d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11H3Z" />
+                </svg>
+                <div>
+                  <small class="branch-label">Workspace</small>
+                  <strong>roamgate</strong>
+                  <small>main &middot; source checkout</small>
+                </div>
               </div>
-              <div>
-                <i></i><strong>feat/agent-radar</strong
-                ><small>3 files changed</small>
-              </div>
-              <div>
-                <i></i><strong>fix/mobile-ime</strong><small>up to date</small>
+              <div class="branch-children">
+                <div class="branch-worktree">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="6" cy="5" r="2" />
+                    <circle cx="6" cy="19" r="2" />
+                    <circle cx="18" cy="6" r="2" />
+                    <path d="M6 7v10m12-9a8 8 0 0 1-8 8H6" />
+                  </svg>
+                  <div>
+                    <strong>feat/agent-radar</strong>
+                    <small class="branch-status is-changed">3 files changed</small>
+                  </div>
+                </div>
+                <div class="branch-worktree">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="6" cy="5" r="2" />
+                    <circle cx="6" cy="19" r="2" />
+                    <circle cx="18" cy="6" r="2" />
+                    <path d="M6 7v10m12-9a8 8 0 0 1-8 8H6" />
+                  </svg>
+                  <div>
+                    <strong>fix/mobile-ime</strong>
+                    <small class="branch-status">Up to date</small>
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -726,6 +760,11 @@
               rel="noopener noreferrer"
               >Herdr</a
             >.
+          </p>
+          <p class="brand-notice">
+            Agent names and logos belong to their respective owners.
+            No endorsement implied.
+            <a href="./assets/agent-icons-LICENSE.txt">Icon licenses</a>.
           </p>
         </div>
         <div class="footer-links">
