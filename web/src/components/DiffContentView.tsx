@@ -410,6 +410,15 @@ class DiffRenderBoundary extends Component<
   }
 }
 
+export function highlightedPatch(patch: string, path: string) {
+  const diff = getSingularPatch(patch);
+  const language = diffSyntaxLanguageForPath(path);
+  // Pierre applies lang to both sides; let it infer each side of a language-changing rename.
+  if (!diff.prevName || diffSyntaxLanguageForPath(diff.prevName) === language)
+    diff.lang = language;
+  return diff;
+}
+
 function HighlightedPatch({
   patch,
   path,
@@ -418,13 +427,7 @@ function HighlightedPatch({
   patch: string;
   path: string;
 }) {
-  const fileDiff = useMemo(
-    () => ({
-      ...getSingularPatch(patch),
-      lang: diffSyntaxLanguageForPath(path),
-    }),
-    [patch, path],
-  );
+  const fileDiff = useMemo(() => highlightedPatch(patch, path), [patch, path]);
   return <FileDiff<DiffReviewAnnotation> {...props} fileDiff={fileDiff} />;
 }
 
