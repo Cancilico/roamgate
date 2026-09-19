@@ -197,6 +197,9 @@
 /* Keep mobile styling in sync with the saved layout and URL override. */
 :where(html[data-layout="mobile"]) {
   .topbar {
+    /* Anchor the opaque header for iOS standalone scroll-edge handling. */
+    position: sticky;
+    top: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     min-height: calc(40px + env(safe-area-inset-top, 0px));
     padding: calc(6px + env(safe-area-inset-top, 0px))

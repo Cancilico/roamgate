@@ -3,9 +3,10 @@ import { serverLogger } from "../utils/logger";
 export const WS_BACKPRESSURE_LIMIT_BYTES = 8 * 1024 * 1024;
 export const WS_COALESCE_LIMIT_BYTES = 1024 * 1024;
 export const WS_COMPRESSION_MIN_BYTES = 1024;
-// Shared codecs bound memory and negotiate no context takeover between messages.
+// WebKit rejects shared-compressor streams interleaved with plain replies.
+// Keep compression per connection; inbound decompression can still be shared.
 export const WS_PER_MESSAGE_DEFLATE = {
-  compress: "shared",
+  compress: "dedicated",
   decompress: "shared",
 } as const;
 

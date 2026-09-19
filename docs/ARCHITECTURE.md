@@ -109,8 +109,10 @@ for delta validation, but popup and Kitty graphics rendering remain outside the
 pane terminal presentation.
 
 Independently of those upstream codecs, bridge-to-browser terminal messages of
-at least 1 KiB use WebSocket compression when the browser negotiates it. Shared
-codecs disable context takeover between messages. Smaller terminal messages,
+at least 1 KiB use WebSocket compression when the browser negotiates it. Each
+connection owns its compressor and retains its compression context for WebKit
+compatibility, at the cost of per-connection compression memory. Inbound
+decompression remains shared with client context takeover disabled. Smaller terminal messages,
 clipboard payloads, and ordinary RPC replies remain uncompressed; clients without
 compression support receive the same protocol unchanged. Backpressure limits and
 runtime-generation checks still apply.

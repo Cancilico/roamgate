@@ -20,6 +20,10 @@ async function settle() {
 async function run() {
   const fixture = document.createElement("div");
   fixture.innerHTML = `
+    <div class="app header-fixture" style="width:390px;height:200px;min-height:0">
+      <header class="topbar"><span>Roamgate</span></header>
+      <main class="body"></main>
+    </div>
     <div class="workspace-stage has-inspector">
       <div class="workspace-terminal-surface"></div>
       <div class="workspace-inspector-resizer"></div>
@@ -31,6 +35,9 @@ async function run() {
       <div class="modal-head lifecycle-head"><h2>Worktrees</h2></div>
     </div>`;
   document.body.append(fixture);
+  const shell = fixture.querySelector<HTMLElement>(".header-fixture")!;
+  const topbar = shell.querySelector<HTMLElement>(".topbar")!;
+  const content = shell.querySelector<HTMLElement>(".body")!;
   const stage = fixture.querySelector<HTMLElement>(".workspace-stage")!;
   const surface = fixture.querySelector<HTMLElement>(
     ".workspace-terminal-surface",
@@ -77,6 +84,35 @@ async function run() {
         document.documentElement.dataset.layout = layout;
         await settle();
         const label = `${theme} ${layout}`;
+        const topbarStyle = getComputedStyle(topbar);
+        check(
+          topbarStyle.position ===
+            (layout === "mobile" ? "sticky" : "relative") &&
+            (layout !== "mobile" || topbarStyle.top === "0px"),
+          `${label}: mobile topbar must be a top-anchored header for iOS scroll-edge handling`,
+        );
+        const background = document.createElement("canvas").getContext("2d")!;
+        background.fillStyle = topbarStyle.backgroundColor;
+        background.fillRect(0, 0, 1, 1);
+        check(
+          background.getImageData(0, 0, 1, 1).data[3] === 255,
+          `${label}: topbar background must remain opaque`,
+        );
+        check(
+          Math.abs(
+            topbar.getBoundingClientRect().top -
+              shell.getBoundingClientRect().top,
+          ) < 1 &&
+            content.getBoundingClientRect().top >=
+              topbar.getBoundingClientRect().bottom - 1,
+          `${label}: topbar must retain its layout space without covering content`,
+        );
+        shell.classList.add("zen");
+        check(
+          getComputedStyle(topbar).position === "absolute",
+          `${label}: Zen topbar must retain its slide-out positioning`,
+        );
+        shell.classList.remove("zen");
         check(
           getComputedStyle(title).fontSize === "16px",
           `${label}: lifecycle title must remain 16px`,
