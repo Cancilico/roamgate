@@ -73,7 +73,12 @@ export function createTerminalBridge(args: {
     ws: ServerWebSocket<unknown>,
     payload: string,
     context?: string,
+    coalesceKey?: string,
   ) => boolean;
+  // Discard a frame held under backpressure once it is the wrong size. Without
+  // this, a resize leaves the old-sized frame queued and it paints a short
+  // surface into the new pane.
+  dropCoalesced?: (ws: ServerWebSocket<unknown>, coalesceKey: string) => void;
   clientLabel: (ws: ServerWebSocket<unknown>) => string;
   markRpcError: (
     ws: ServerWebSocket<unknown>,
@@ -130,6 +135,13 @@ export function createTerminalBridge(args: {
       ? "browser-local"
       : "shared";
   }
+
+  const terminalCoalesceKey = (terminalId: string) =>
+    `terminal:${JSON.stringify([
+      args.connectionId ?? null,
+      args.connectionGeneration ?? null,
+      terminalId,
+    ])}`;
 
   const serialize = (message: Record<string, unknown>) =>
     args.connectionId
@@ -615,7 +627,16 @@ export function createTerminalBridge(args: {
           });
           payloads.set(key, payload);
         }
-        args.safeSend(viewer, payload, "terminal-frame");
+        // Only endpoint streams always repaint the full surface. Holding even
+        // a full legacy frame lets later incremental frames overtake their base.
+        args.safeSend(
+          viewer,
+          payload,
+          "terminal-frame",
+          thin instanceof EndpointTerminalSession && t.full
+            ? terminalCoalesceKey(terminalId)
+            : undefined,
+        );
       }
     });
     // Bind to the receiving session, NOT the producing PTY: Herdr 0.9.0 sends
@@ -944,6 +965,10 @@ export function createTerminalBridge(args: {
             shared.thin.resize(cols, rows);
             shared.cols = cols;
             shared.rows = rows;
+            // This resize changes the surface for EVERY viewer, so any frame
+            // held under backpressure is now the wrong size for all of them.
+            for (const viewer of shared.viewers)
+              args.dropCoalesced?.(viewer, terminalCoalesceKey(terminalId));
             logger.debug(
               refreshReusedTerminal ? "terminal refreshed" : "terminal resized",
               {
@@ -1150,6 +1175,8 @@ export function createTerminalBridge(args: {
         terminalViewers.get(ws)!.set(requestedTerminalId!, { cols, rows });
         shared.cols = cols;
         shared.rows = rows;
+        // Anything held for this terminal was rendered for the previous size.
+        args.dropCoalesced?.(ws, terminalCoalesceKey(requestedTerminalId!));
         if (relaySize) {
           clipboardRelayRevision += 1;
           syncClipboardRelaySize(relaySize.cols, relaySize.rows);
