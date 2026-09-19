@@ -1384,108 +1384,244 @@ test("invalid initial surface hints are rejected before opening an endpoint", as
   }
 });
 
-test("coalesces endpoint frames independently by connection and runtime generation", async () => {
-  const peers: Array<(panes: TestPane[], frame?: FrameData) => void> = [];
-  const socketPath = await startSessionServer({
-    onConnection: (send) => peers.push(send),
-  });
-  let buffered = WS_COALESCE_LIMIT_BYTES + 1;
-  const sent: string[] = [];
-  const received = new EventEmitter();
-  const latest = new Map<string, string>();
-  const browser = {
-    close: () => {},
-    getBufferedAmount: () => buffered,
-    send: (payload: string) => {
-      sent.push(payload);
-      return payload.length;
-    },
-  } as unknown as ServerWebSocket<unknown>;
-  const cleanup = () => {};
-  const identities = [
-    { connectionId: "alpha", connectionGeneration: 1 },
-    { connectionId: "beta", connectionGeneration: 1 },
-    { connectionId: "alpha", connectionGeneration: 2 },
-  ];
-  const bridges = identities.map((identity) =>
-    createTerminalBridge({
-      ...identity,
-      clientSocketPath: socketPath,
-      herdrProtocol: async () => 22,
-      lookupPaneId: async () => "w1:p1",
-      safeSend: (ws, payload, context, coalesceKey) => {
-        const result = sendWebSocketMessage(ws, payload, {
-          cleanup,
-          context,
-          coalesceKey,
-        });
-        if (JSON.parse(payload).terminal) {
-          latest.set(
-            `${identity.connectionId}:${identity.connectionGeneration}`,
-            payload,
-          );
-          received.emit("frame");
-        }
-        return result;
-      },
-      dropCoalesced: dropCoalescedMessage,
-      clientLabel: () => "test",
-      markRpcError: () => undefined,
-    }),
-  );
-  const params = {
-    terminal_id: "same-terminal",
-    cols: 8,
-    rows: 3,
-    relay_active: false,
-  };
-  const terminalPayloads = () =>
-    sent.filter((payload) => JSON.parse(payload).terminal);
-  const repaint = async (peer: number, symbol: string) => {
-    const ready = once(received, "frame");
-    peers[peer](DEFAULT_PANES, {
-      cells: Array.from({ length: 50 }, () => cell(symbol)),
-      width: 10,
-      height: 5,
-      cursor: null,
-      hyperlinks: [],
+test.each([
+  "terminal.resize",
+  "terminal.attach",
+  "terminal.detach",
+  "stream.close",
+  "cleanup",
+  "dispose",
+] as const)(
+  "invalidates coalesced endpoint frames only for their connection and generation on %s",
+  async (action) => {
+    const peers: Array<(panes: TestPane[], frame?: FrameData) => void> = [];
+    const socketPath = await startSessionServer({
+      onConnection: (send) => peers.push(send),
     });
-    await ready;
-  };
-  try {
-    for (const bridge of bridges) {
+    let buffered = WS_COALESCE_LIMIT_BYTES + 1;
+    const sent: string[] = [];
+    const received = new EventEmitter();
+    const latest = new Map<string, string>();
+    const browser = {
+      close: () => {},
+      getBufferedAmount: () => buffered,
+      send: (payload: string) => {
+        sent.push(payload);
+        return payload.length;
+      },
+    } as unknown as ServerWebSocket<unknown>;
+    const cleanup = () => {};
+    const identities = [
+      { connectionId: "alpha", connectionGeneration: 1 },
+      { connectionId: "beta", connectionGeneration: 1 },
+      { connectionId: "alpha", connectionGeneration: 2 },
+    ];
+    const bridges = identities.map((identity) =>
+      createTerminalBridge({
+        ...identity,
+        clientSocketPath: socketPath,
+        herdrProtocol: async () => 22,
+        lookupPaneId: async () => "w1:p1",
+        safeSend: (ws, payload, context, coalesceKey) => {
+          const result = sendWebSocketMessage(ws, payload, {
+            cleanup,
+            context,
+            coalesceKey,
+          });
+          if (JSON.parse(payload).terminal_closed) received.emit("closed");
+          if (JSON.parse(payload).terminal) {
+            latest.set(
+              `${identity.connectionId}:${identity.connectionGeneration}`,
+              payload,
+            );
+            received.emit("frame");
+          }
+          return result;
+        },
+        dropCoalesced: dropCoalescedMessage,
+        clientLabel: () => "test",
+        markRpcError: () => undefined,
+      }),
+    );
+    const params = {
+      terminal_id: "same-terminal",
+      cols: 8,
+      rows: 3,
+      relay_active: false,
+    };
+    const terminalPayloads = () =>
+      sent.filter((payload) => JSON.parse(payload).terminal);
+    const repaint = async (peer: number, symbol: string) => {
       const ready = once(received, "frame");
-      await bridge.handleTerminalRpc(
-        browser,
-        "attach",
-        "terminal.attach",
-        params,
-      );
+      peers[peer](DEFAULT_PANES, {
+        cells: Array.from({ length: 50 }, () => cell(symbol)),
+        width: 10,
+        height: 5,
+        cursor: null,
+        hyperlinks: [],
+      });
       await ready;
-    }
-    await repaint(0, "Z");
-    expect(terminalPayloads()).toEqual([]);
-    buffered = 0;
-    flushCoalescedMessages(browser, { cleanup });
-    expect(terminalPayloads().sort()).toEqual([...latest.values()].sort());
-    expect(terminalPayloads()).toHaveLength(3);
+    };
+    try {
+      for (const bridge of bridges) {
+        const ready = once(received, "frame");
+        await bridge.handleTerminalRpc(
+          browser,
+          "attach",
+          "terminal.attach",
+          params,
+        );
+        await ready;
+      }
+      await repaint(0, "Z");
+      expect(terminalPayloads()).toEqual([]);
+      buffered = 0;
+      flushCoalescedMessages(browser, { cleanup });
+      expect(terminalPayloads().sort()).toEqual([...latest.values()].sort());
+      expect(terminalPayloads()).toHaveLength(3);
 
-    // Invalidating alpha's old generation must not discard beta or alpha's new generation.
-    for (const method of ["terminal.resize", "terminal.attach"]) {
+      // Invalidating alpha's old generation must not discard beta or alpha's new generation.
       sent.length = 0;
       buffered = WS_COALESCE_LIMIT_BYTES + 1;
       for (let i = 0; i < peers.length; i++) await repaint(i, "Y");
-      const viewer = method === "terminal.attach" ? { ...browser } : browser;
-      await bridges[0].handleTerminalRpc(viewer, "resize", method, params);
+      const viewer = action === "terminal.attach" ? { ...browser } : browser;
+      if (action === "cleanup") bridges[0].cleanupWs(viewer);
+      else if (action === "dispose") bridges[0].dispose();
+      else if (action === "stream.close") {
+        const closed = once(received, "closed");
+        bridges[0].refreshSurfaceCodecs();
+        await closed;
+        expect(
+          sent.some((payload) => JSON.parse(payload).terminal_closed),
+        ).toBe(true);
+      } else
+        await bridges[0].handleTerminalRpc(
+          viewer,
+          "invalidate",
+          action,
+          params,
+        );
       buffered = 0;
       flushCoalescedMessages(browser, { cleanup });
       expect(terminalPayloads().sort()).toEqual(
         [latest.get("beta:1")!, latest.get("alpha:2")!].sort(),
       );
       if (viewer !== browser) bridges[0].cleanupWs(viewer);
+    } finally {
+      for (const bridge of bridges) bridge.dispose();
     }
+  },
+);
+
+test("a delayed close notifies only old viewers and preserves a replacement's held frame", async () => {
+  const sessions: EndpointTerminalSession[] = [];
+  const originalConnect = EndpointTerminalSession.prototype.connect;
+  const connect = spyOn(
+    EndpointTerminalSession.prototype,
+    "connect",
+  ).mockImplementation(function (
+    this: EndpointTerminalSession,
+    cols: number,
+    rows: number,
+  ) {
+    sessions.push(this);
+    return originalConnect.call(this, cols, rows);
+  });
+  const peers: Array<(panes: TestPane[]) => void> = [];
+  const socketPath = await startSessionServer({
+    onConnection: (send) => peers.push(send),
+  });
+  let buffered = WS_COALESCE_LIMIT_BYTES + 1;
+  const messages: { viewer: unknown; message: any }[] = [];
+  const frames = new EventEmitter();
+  const latest = new Map<unknown, string>();
+  const viewers = [0, 1].map(() => ({
+    close() {},
+    getBufferedAmount: () => buffered,
+    send(payload: string) {
+      messages.push({ viewer: this, message: JSON.parse(payload) });
+      return payload.length;
+    },
+  })) as unknown as ServerWebSocket<unknown>[];
+  const bridge = createTerminalBridge({
+    clientSocketPath: socketPath,
+    herdrProtocol: async () => 22,
+    lookupPaneId: async () => "w1:p1",
+    safeSend(viewer, payload, context, coalesceKey) {
+      const sent = sendWebSocketMessage(viewer, payload, {
+        cleanup() {},
+        context,
+        coalesceKey,
+      });
+      if (JSON.parse(payload).terminal) {
+        latest.set(viewer, payload);
+        frames.emit(String(viewers.indexOf(viewer)));
+      }
+      return sent;
+    },
+    dropCoalesced: dropCoalescedMessage,
+    clientLabel: () => "test",
+    markRpcError() {},
+  });
+  const attach = (index: number) =>
+    bridge.handleTerminalRpc(
+      viewers[index],
+      `attach-${index}`,
+      "terminal.attach",
+      {
+        terminal_id: "term",
+        cols: 8,
+        rows: 3,
+        relay_active: false,
+      },
+    );
+  let restoreEmit: (() => void) | undefined;
+  try {
+    for (let i = 0; i < viewers.length; i++) {
+      const frame = once(frames, String(i));
+      await attach(i);
+      if (i > 0) peers[0]([{ ...DEFAULT_PANES[0], mouseReporting: true }]);
+      await frame;
+    }
+    const old = sessions[0];
+    const emit = old.emit.bind(old);
+    const delayedClose = deferred<() => void>();
+    const intercepted = spyOn(old, "emit").mockImplementation(
+      (event, ...args) => {
+        if (event === "close") {
+          delayedClose.resolve(() => {
+            emit(event, ...args);
+          });
+          return true;
+        }
+        return emit(event, ...args);
+      },
+    );
+    restoreEmit = () => intercepted.mockRestore();
+    bridge.refreshSurfaceCodecs();
+    const deliverClose = await delayedClose.promise;
+    const replacementFrame = once(frames, "0");
+    await attach(0);
+    await replacementFrame;
+    expect(sessions).toHaveLength(2);
+    messages.length = 0;
+    restoreEmit();
+    deliverClose();
+    expect(
+      messages
+        .filter(({ message }) => message.terminal_closed)
+        .map(({ viewer }) => viewer),
+    ).toEqual([viewers[1]]);
+    buffered = 0;
+    for (const viewer of viewers)
+      flushCoalescedMessages(viewer, { cleanup() {} });
+    expect(messages.filter(({ message }) => message.terminal)).toEqual([
+      { viewer: viewers[0], message: JSON.parse(latest.get(viewers[0])!) },
+    ]);
   } finally {
-    for (const bridge of bridges) bridge.dispose();
+    restoreEmit?.();
+    bridge.dispose();
+    connect.mockRestore();
   }
 });
 

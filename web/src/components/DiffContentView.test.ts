@@ -8,6 +8,7 @@ import {
   diffSearchGroups,
   nextDiffHunkIndex,
   isImageDiff,
+  highlightedPatch,
 } from "./DiffContentView";
 
 const entries: GitDiffEntry[] = [
@@ -63,6 +64,28 @@ test("Changes previews every supported binary image without replacing text diffs
     false,
   );
   expect(isImageDiff("README.md", "")).toBe(false);
+});
+
+test("renames preserve per-side languages without losing same-language overrides", () => {
+  for (const [previousPath, path, language] of [
+    ["config.json", "config.txt", undefined],
+    ["config.json", "config.ts", undefined],
+    ["config.txt", "config.json", undefined],
+    ["old.json", "new.json", "json"],
+    ["Podfile", "Gemfile", "ruby"],
+  ] as const) {
+    const diff = highlightedPatch(
+      `diff --git a/${previousPath} b/${path}\n` +
+        `similarity index 90%\nrename from ${previousPath}\nrename to ${path}\n` +
+        `--- a/${previousPath}\n+++ b/${path}\n` +
+        '@@ -1,3 +1,3 @@\n {\n-  "value": 1\n+  "value": 2\n }\n',
+      path,
+    );
+    expect(diff.prevName).toBe(previousPath);
+    expect(diff.name).toBe(path);
+    if (language === undefined) expect(diff.lang).toBeUndefined();
+    else expect(diff.lang).toBe(language);
+  }
 });
 
 describe("diffContentEntries", () => {

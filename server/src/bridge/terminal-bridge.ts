@@ -462,6 +462,7 @@ export function createTerminalBridge(args: {
           viewed?.keys() ?? (current?.terminalId ? [current.terminalId] : []),
         );
     for (const id of terminalIds) {
+      args.dropCoalesced?.(ws, terminalCoalesceKey(id));
       attachmentTokens.get(ws)?.delete(id);
       if (clipboardTarget?.ws === ws && clipboardTarget.terminalId === id) {
         clipboardTarget = null;
@@ -526,6 +527,8 @@ export function createTerminalBridge(args: {
     const existing = sharedTerminals.get(terminalId);
     if (existing && !existing.thin.isClosed) return existing;
     if (existing) {
+      for (const viewer of existing.viewers)
+        args.dropCoalesced?.(viewer, terminalCoalesceKey(terminalId));
       existing.thin.close();
       sharedTerminals.delete(terminalId);
     }
@@ -681,18 +684,24 @@ export function createTerminalBridge(args: {
         frames: shared.frames,
         bytes: formatBytes(shared.bytes),
       });
-      if (sharedTerminals.get(terminalId)?.thin === thin) {
-        sharedTerminals.delete(terminalId);
-      }
+      // A delayed close must leave replacement viewers alone, but still notify
+      // viewers waiting on this old stream so they can reattach too.
+      const current = sharedTerminals.get(terminalId);
+      const viewers = Array.from(shared.viewers).filter(
+        (viewer) => current === shared || !current?.viewers.has(viewer),
+      );
+      for (const viewer of viewers)
+        args.dropCoalesced?.(viewer, terminalCoalesceKey(terminalId));
+      if (current === shared) sharedTerminals.delete(terminalId);
       // Herdr closes a direct attach whose terminal another client takes
       // over, and the stream can also die with the server. Viewers only see
       // silence otherwise, so tell them to re-attach instead of leaving a
       // blank terminal behind.
-      if (isCurrent(creationRevision) && shared.viewers.size > 0) {
+      if (isCurrent(creationRevision) && viewers.length > 0) {
         logger.warn("terminal stream closed with live viewers", {
           connection: args.connectionId ?? "legacy-default",
           terminal: terminalId,
-          viewers: shared.viewers.size,
+          viewers: viewers.length,
         });
         const closedPayload = serialize({
           terminal_closed: {
@@ -700,7 +709,7 @@ export function createTerminalBridge(args: {
             reason: shared.lastError ?? "stream_closed",
           },
         });
-        for (const viewer of Array.from(shared.viewers)) {
+        for (const viewer of viewers) {
           args.safeSend(viewer, closedPayload, "terminal-closed");
         }
       }
@@ -1278,6 +1287,7 @@ export function createTerminalBridge(args: {
     disposed = true;
     lifecycleRevision += 1;
     closeClipboardRelay();
+    for (const ws of terminalViewers.keys()) detachTerminalViewer(ws);
     for (const shared of sharedTerminals.values()) shared.thin.close();
     sharedTerminals.clear();
     terminalViewers.clear();
