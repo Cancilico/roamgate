@@ -97,6 +97,59 @@ describe("tutorial Markdown", () => {
 });
 
 describe("Pages references", () => {
+  test("agent logos illustrate product examples, not a hero support list", async () => {
+    const html = await Bun.file(
+      new URL("../site/index.html", import.meta.url),
+    ).text();
+    const sources = new Set<string>();
+    const labels: string[] = [];
+    let heroLogos = 0;
+    await new HTMLRewriter()
+      .on("img.agent-logo", {
+        element(element) {
+          sources.add(element.getAttribute("src") ?? "");
+          expect(element.getAttribute("alt")).toBe("");
+          expect(element.getAttribute("width")).toBe("28");
+          expect(element.getAttribute("height")).toBe("28");
+        },
+      })
+      .on(".hero-copy .agent-logo", {
+        element() {
+          heroLogos++;
+        },
+      })
+      .on(".mini-agent strong", {
+        text(chunk) {
+          if (chunk.text.trim()) labels.push(chunk.text.trim());
+        },
+      })
+      .transform(new Response(html))
+      .text();
+    expect(heroLogos).toBe(0);
+    expect(html).not.toContain('class="agent-brands"');
+    expect(labels).toEqual(["Codex", "Pi", "Kimi"]);
+    expect([...sources].sort()).toEqual([
+      "./assets/codex.svg",
+      "./assets/kimi.svg",
+      "./assets/pi.svg",
+    ]);
+    for (const source of sources) {
+      const svg = await Bun.file(
+        new URL(`../site/${source}`, import.meta.url),
+      ).text();
+      expect(svg).toContain("<svg");
+      expect(svg).toContain("viewBox=");
+    }
+    expect(
+      await Bun.file(new URL("../site/assets/pi.svg", import.meta.url)).text(),
+    ).toBe(
+      await Bun.file(
+        new URL("../web/src/assets/pi-logo.svg", import.meta.url),
+      ).text(),
+    );
+    expect(html).toContain('href="./assets/agent-icons-LICENSE.txt"');
+  });
+
   test("social previews and canonical URLs use the production domain", async () => {
     for (const page of ["index.html", "tutorial/index.html"]) {
       const html = await Bun.file(
