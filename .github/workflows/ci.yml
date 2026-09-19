@@ -25,4 +25,5 @@ jobs:
             - run: bun run lint
             - run: bun run typecheck
             - run: bun run build:site
-            - run: bun run test
+            - run: bun run test:quick
+            - run: bun run test:browser

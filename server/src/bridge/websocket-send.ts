@@ -2,6 +2,12 @@ import { serverLogger } from "../utils/logger";
 
 export const WS_BACKPRESSURE_LIMIT_BYTES = 8 * 1024 * 1024;
 export const WS_COALESCE_LIMIT_BYTES = 1024 * 1024;
+export const WS_COMPRESSION_MIN_BYTES = 1024;
+// Shared codecs bound memory and negotiate no context takeover between messages.
+export const WS_PER_MESSAGE_DEFLATE = {
+  compress: "shared",
+  decompress: "shared",
+} as const;
 
 const websocketLogger = serverLogger.child("websocket");
 
@@ -15,7 +21,7 @@ const heldPayloads = new WeakMap<WebSocketSendTarget, Map<string, string>>();
 interface WebSocketSendTarget {
   close(code?: number, reason?: string): void;
   getBufferedAmount(): number;
-  send(payload: string): number;
+  send(payload: string, compress?: boolean): number;
 }
 
 interface WebSocketSendOptions {
@@ -126,7 +132,11 @@ export function sendWebSocketMessage(
   try {
     if (closeSlowWebSocket(ws, sendContext)) return false;
 
-    const result = ws.send(payload);
+    const result = ws.send(
+      payload,
+      context === "terminal-frame" &&
+        Buffer.byteLength(payload) >= WS_COMPRESSION_MIN_BYTES,
+    );
     if (result === 0) {
       cleanup();
       warn(`[bridge] websocket send dropped during ${context}`);

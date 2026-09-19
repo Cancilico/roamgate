@@ -39,7 +39,7 @@ test("the app links a credentialed standalone manifest with existing install ico
   }
 });
 
-test("standalone builds embed the install manifest", async () => {
+test("source runs fall back to the built public directory", async () => {
   const response = await serveStatic(
     new Request("https://roamgate.example/manifest.json"),
     "/nonexistent-roamgate-static-test",
