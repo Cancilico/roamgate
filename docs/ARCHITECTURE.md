@@ -108,6 +108,13 @@ savings do not imply smaller bridge-to-browser messages. Popup grids are retaine
 for delta validation, but popup and Kitty graphics rendering remain outside the
 pane terminal presentation.
 
+Independently of those upstream codecs, bridge-to-browser terminal messages of
+at least 1 KiB use WebSocket compression when the browser negotiates it. Shared
+codecs disable context takeover between messages. Smaller terminal messages,
+clipboard payloads, and ordinary RPC replies remain uncompressed; clients without
+compression support receive the same protocol unchanged. Backpressure limits and
+runtime-generation checks still apply.
+
 `terminal.attach` carries pane content dimensions in `cols`/`rows`. When layout
 is available, the browser also supplies `surface_cols`/`surface_rows` for the
 complete tab, including pane borders but excluding app sidebar/tab-bar insets.
@@ -378,8 +385,8 @@ same runtime host boundary. See [connection setup](./DEPLOYMENT.md#multiple-and-
 
 ## Distribution model
 
-Production builds embed the frontend and Bun runtime into one platform executable;
-users need neither Bun nor Node.js. Source builds use Bun and Vite. See
+Production builds embed the frontend directory with Bun's native asset loader and
+the Bun runtime into one platform executable; users need neither Bun nor Node.js. Source builds use Bun and Vite. See
 [standalone builds](./DEPLOYMENT.md#build-a-standalone-executable).
 
 Roamgate has a separate release namespace: executable and package members,

@@ -365,6 +365,11 @@ controls. It defaults to a session-modal popup; `--placement split` (or `tab`,
 Flags override environment variables, which override defaults. Run
 `roamgate --help` for the complete list.
 
+Standalone executables do not automatically load `.env` or `bunfig.toml` from
+the working directory. Export environment variables explicitly, pass CLI flags,
+or use the managed service's `roamgate.env` file. Source development with
+`bun run` retains Bun's normal configuration loading.
+
 Every `ROAMGATE_*` setting below also accepts its legacy `HERDR_GUI_*`
 name. The new name takes precedence when both are set, including an explicitly
 empty value. This applies to runtime settings, connection registry paths, and

@@ -7,6 +7,7 @@ import {
   flushCoalescedMessages,
   sendWebSocketMessage,
   WebSocketCleanupTracker,
+  WS_PER_MESSAGE_DEFLATE,
 } from "./bridge/websocket-send";
 import {
   browserUrlFor,
@@ -1318,6 +1319,7 @@ function main() {
           return serveStatic(req, config.publicDir);
         },
         websocket: {
+          perMessageDeflate: WS_PER_MESSAGE_DEFLATE,
           open(ws) {
             clients.add(ws);
             const label = assignClientId(ws);

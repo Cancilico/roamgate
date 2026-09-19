@@ -576,6 +576,7 @@ test("production routing bootstraps only a verified empty session and serializes
     let seq = 0;
     const rpc = (
       ws: WebSocket,
+      method: string,
       params: Record<string, unknown>,
       generation?: number,
     ) =>
@@ -596,8 +597,8 @@ test("production routing bootstraps only a verified empty session and serializes
         ws.send(
           JSON.stringify({
             id,
-            method: "workspace.create",
-            connection_id: "empty",
+            method,
+            connection_id: method === "workspace.create" ? "empty" : undefined,
             ...(generation === undefined
               ? {}
               : { connection_generation: generation }),
@@ -605,26 +606,41 @@ test("production routing bootstraps only a verified empty session and serializes
           }),
         );
       });
+    // HTTP health only confirms the listener; await the backend handshake too.
     expect(
-      (await rpc(browsers[0], { browser_source: null })).error,
-    ).toBeDefined();
+      await rpc(browsers[0], "connections.connect", { id: "empty" }),
+    ).toMatchObject({ result: { state: "ready" } });
+    expect(
+      (await rpc(browsers[0], "workspace.create", { browser_source: null }))
+        .error,
+    ).toMatchObject({
+      message: "Cannot verify an empty session. Refresh and retry creation.",
+    });
     expect(mutations).toHaveLength(0);
     valid = true;
     const results = await Promise.all(
-      browsers.map((ws) => rpc(ws, { browser_source: null, focus: true })),
+      browsers.map((ws) =>
+        rpc(ws, "workspace.create", { browser_source: null, focus: true }),
+      ),
     );
     expect(
       results.filter((result) => result.result?.type === "workspace_created"),
+      JSON.stringify(results),
     ).toHaveLength(1);
     expect(results.filter((result) => result.error)).toHaveLength(1);
     expect(mutations).toEqual([{ focus: false }]);
     expect(
-      (await rpc(browsers[0], { browser_source: null, cwd: "/wrong" })).error,
+      (
+        await rpc(browsers[0], "workspace.create", {
+          browser_source: null,
+          cwd: "/wrong",
+        })
+      ).error,
     ).toBeDefined();
     workspaces = [];
     expect(
       (
-        await rpc(browsers[0], {
+        await rpc(browsers[0], "workspace.create", {
           browser_source: null,
           cwd: "/explicit",
           focus: true,
@@ -634,7 +650,14 @@ test("production routing bootstraps only a verified empty session and serializes
     expect(mutations[1]).toEqual({ cwd: "/explicit", focus: false });
     workspaces = [];
     expect(
-      (await rpc(browsers[0], { browser_source: null }, 99999)).error,
+      (
+        await rpc(
+          browsers[0],
+          "workspace.create",
+          { browser_source: null },
+          99999,
+        )
+      ).error,
     ).toBeDefined();
     expect(mutations).toHaveLength(2);
   } finally {
