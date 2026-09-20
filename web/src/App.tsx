@@ -1755,8 +1755,7 @@ export default function App() {
           message: fallback
             ? "No agent pane found; feedback copied"
             : "Review feedback copied",
-          detail: `${annotations.length} comment${annotations.length === 1 ? "" : "s"}`,
-          autoDismissMs: 5000,
+          autoDismissMs: 3000,
         });
       } catch (error) {
         store.notify({

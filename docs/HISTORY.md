@@ -49,16 +49,32 @@ visible, with no overlapping active refresh. Long card content is capped at
 text on demand. Tool names and source call IDs associate results without moving
 them away from their transcript position.
 
-## Message type filters
+## Message filters
+
+The Session header shows the History count and icon buttons for session details,
+transcript preview, raw export, and refresh. The info button toggles metadata
+and messages in both wide and compact layouts, preserving the message filters
+and selected entry. Session changes return to messages.
 
 The User, Agent, and Tool toggle buttons independently filter the loaded History
 window. User and Agent start enabled; Tool starts disabled. Agent includes
 assistant errors; Tool includes calls, outputs, and tool errors. Button counts
-describe the unfiltered window; the History badge shows visible/total when
+describe the unfiltered window; the header count shows visible/total when
 filtered. The minimap and card numbering follow the visible list. Hidden entries still
-receive incremental updates, and exports are unaffected. Selections survive
-pane switches and close/reopen while the drawer stays mounted; they are not
+receive incremental updates, and exports are unaffected. Message type selections
+survive pane switches and close/reopen while the drawer stays mounted; they are not
 saved across page reloads. If no entries match, Show all types restores the view.
+
+Text search matches a case-insensitive literal substring in the loaded window,
+combined with the message type filters. It searches full loaded text, including
+content beyond the card preview; redacted tool content becomes searchable only
+after explicitly loading it. Search does not fetch older messages or tool
+payloads. Reset filters clears the search and enables every message type.
+Search text resets when switching panes or connections.
+
+Click a card's header, text, or background to open its details; Copy remains a
+separate action. Message timestamps use local time in `MM-DD HH:mm` format,
+with a `YYYY-` prefix for dates outside the current year.
 
 ![History filtered to tool calls and outputs using synthetic test data](screenshots/history-tool-filter.png)
 

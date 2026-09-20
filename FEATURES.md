@@ -283,6 +283,8 @@ File operations and previews work locally and over SSH.
 - Edit, delete, or reorder mixed checkout-scoped comments. Copy compiled feedback or
   pre-fill a selected Agent pane; **delivery never submits**. Review and press
   Enter manually. After pre-fill, **Go to agent** opens the destination pane/tab.
+- With focus inside Annotations, use the configurable shortcuts shown on **Copy**
+  and **Pre-fill agent**. Copy confirms success with a brief notification.
 - Copy retains the browser-local draft. Successful pre-fill removes only unchanged,
   delivered comments; edits made during delivery and failed deliveries retain work.
   Leaving the draft's workspace or connection during pre-fill retains the original draft,
@@ -435,7 +437,8 @@ Common defaults (Linux/Android overrides follow the table):
 | Diff Viewer | `Ctrl+Shift+G` | `Ctrl+Alt+G` |
 | Agent history | `Cmd+Shift+H` | `Ctrl+Alt+H` |
 | Search raw preview / diff | `Cmd+F` | `Ctrl+F` |
-| Send composer / add review comment | `Cmd+Enter` | `Ctrl+Enter` |
+| Send composer / add review comment / pre-fill agent (focused surface) | `Cmd+Enter` | `Ctrl+Enter` |
+| Copy review feedback (in Annotations) | `Cmd+Shift+C` | `Ctrl+Shift+C` |
 | Copy terminal selection | `Cmd+C` | `Ctrl+Shift+C` / `Ctrl+Insert` |
 | Terminal paste | `Cmd+V` | `Ctrl+V` (also `Ctrl+Shift+V` on Linux) |
 | Open terminal links / file paths | `Cmd+Click` | `Ctrl+Click` |

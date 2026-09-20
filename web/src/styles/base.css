@@ -285,8 +285,8 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  flex: 0 1 auto;
-  overflow: hidden;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 .git-badge {
