@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Copy, X } from "lucide-react";
-import { UI_LOCALE } from "../uiLocale";
+import { formatUiDateTime } from "../uiLocale";
 import { copyTextWithFeedback } from "../copyText";
 import { CloseButton } from "./CloseButton";
 import { MarkdownPreview } from "./markdown";
@@ -17,15 +17,6 @@ export type AgentMessage = {
   sent_at: string;
   text_bytes?: number;
 };
-
-export function formatAgentMessageTime(sentAt: string) {
-  const time = new Date(sentAt);
-  if (Number.isNaN(time.getTime())) return sentAt;
-  return time.toLocaleString(UI_LOCALE, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export function agentMessageRoleLabel(message: AgentMessage) {
   return message.role === "tool"
@@ -68,7 +59,9 @@ export function AgentMessageContent({
       >
         <div>
           <h3>{roleLabel} Message</h3>
-          <time>{formatAgentMessageTime(message.sent_at)}</time>
+          <time dateTime={message.sent_at}>
+            {formatUiDateTime(message.sent_at)}
+          </time>
           {message.source_call_id ? (
             <p>Call ID: {message.source_call_id}</p>
           ) : null}

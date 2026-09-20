@@ -4,6 +4,8 @@ import "../styles/layout/app.css";
 import "../styles/layout/topbar.css";
 import "./WorktreeLifecycleDialog.css";
 import "./AnnotationPanel.css";
+import "./WorkspaceTree.css";
+import "../styles/layout/sidebar.css";
 
 // Deliberately exclude lazy inspector/terminal styles: App's shell must lay
 // out correctly even while those chunks are still downloading.
@@ -49,6 +51,122 @@ async function run() {
   const header = fixture.querySelector<HTMLElement>(".lifecycle-head")!;
   const title = header.querySelector("h2")!;
   try {
+    const sidebar = document.createElement("aside");
+    sidebar.className = "sidebar";
+    sidebar.style.height = "300px";
+    sidebar.innerHTML = `<div class="sidebar-content">
+      <div class="panel tree workspace-tree-panel"><div class="workspace-tree-content">
+        <div class="tree-row has-tab-count" tabindex="0">
+          <span class="twisty"></span>
+          <strong class="ws-label">feature-with-a-long-workspace-name</strong>
+          <span class="workspace-tab-count">2</span>
+          <span class="git-status" title="Git status">
+            <span class="git-badge git-branch">feature-with-a-long-branch-name</span>
+            <span class="git-badge git-dirty">Δ5</span>
+            <span class="git-badge git-ahead">↑1234</span>
+            <span class="git-badge git-behind">↓12</span>
+          </span>
+        </div>
+      </div></div>
+    </div>`;
+    fixture.append(sidebar);
+    const row = sidebar.querySelector<HTMLElement>(".tree-row")!;
+    const workspaceName = sidebar.querySelector<HTMLElement>(".ws-label")!;
+    const branch = sidebar.querySelector<HTMLElement>(".git-branch")!;
+    const git = sidebar.querySelector<HTMLElement>(".git-status")!;
+    const treeContent = sidebar.querySelector<HTMLElement>(
+      ".workspace-tree-content",
+    )!;
+    for (const theme of ["dark", "light"]) {
+      document.documentElement.dataset.theme = theme;
+      for (const layout of ["desktop", "mobile"]) {
+        document.documentElement.dataset.layout = layout;
+        for (const width of [180, 240, 320]) {
+          sidebar.style.width = `${width}px`;
+          for (const showBranch of [false, true]) {
+            branch.hidden = !showBranch;
+            await settle();
+            const context = `${theme} ${layout} sidebar ${width}px branch=${showBranch}`;
+            const gitRect = git.getBoundingClientRect();
+            const viewport = treeContent.getBoundingClientRect();
+            const nameRect = workspaceName.getBoundingClientRect();
+            check(
+              Math.abs(
+                gitRect.top +
+                  gitRect.height / 2 -
+                  nameRect.top -
+                  nameRect.height / 2,
+              ) < 1 &&
+                gitRect.height <= 17 &&
+                nameRect.width > 0,
+              `${context}: workspace title and Git badges must stay on one compact line`,
+            );
+            for (const badge of git.querySelectorAll<HTMLElement>(
+              ".git-dirty, .git-ahead, .git-behind",
+            )) {
+              const bounds = badge.getBoundingClientRect();
+              check(
+                badge.scrollWidth <= badge.clientWidth &&
+                  bounds.left >= gitRect.left - 1 &&
+                  bounds.right <= gitRect.right + 1 &&
+                  bounds.top >= gitRect.top - 1 &&
+                  bounds.bottom <= gitRect.bottom + 1 &&
+                  bounds.right <= viewport.right + 1 &&
+                  bounds.top >= viewport.top - 1 &&
+                  bounds.bottom <= viewport.bottom + 1,
+                `${context}: ${badge.textContent} must stay fully visible`,
+              );
+            }
+            check(
+              treeContent.scrollWidth <= treeContent.clientWidth,
+              `${context}: badges must not cause horizontal overflow`,
+            );
+            row.focus();
+            check(
+              document.activeElement === row,
+              `${context}: workspace remains keyboard-focusable`,
+            );
+          }
+        }
+      }
+    }
+    sidebar.style.width = "240px";
+    workspaceName.textContent = "sample-workspace";
+    git.querySelector(".git-ahead")!.remove();
+    git.querySelector(".git-behind")!.remove();
+    await settle();
+    check(
+      branch.getBoundingClientRect().width >= 30,
+      "a branch with a single count must retain readable space",
+    );
+    sidebar.style.width = "180px";
+    await settle();
+    check(
+      git.getBoundingClientRect().height ===
+        branch.getBoundingClientRect().height,
+      "a branch and change count must stay on one line in a narrow sidebar",
+    );
+    sidebar.style.width = "480px";
+    for (const branchName of ["feature-with-a-long-branch-name", "main"]) {
+      branch.textContent = branchName;
+      await settle();
+      check(
+        Math.abs(
+          git.getBoundingClientRect().right -
+            git.querySelector(".git-dirty")!.getBoundingClientRect().right,
+        ) < 1,
+        "Git status must not reserve empty space after its last badge",
+      );
+    }
+    git.remove();
+    await settle();
+    check(
+      row.getBoundingClientRect().height <=
+        workspaceName.getBoundingClientRect().height + 8,
+      "a workspace without Git metadata must remain a single row",
+    );
+    sidebar.remove();
+    delete document.documentElement.dataset.layout;
     const zen = document.createElement("div");
     zen.className = "app zen";
     zen.innerHTML = `<header class="topbar"></header>

@@ -65,6 +65,12 @@ const descriptions: [ShortcutId, string, string][] = [
   ["preview.search", "Search the raw file preview or diff", "Preview & review"],
   ["preview.selectAll", "Select all in the file preview", "Preview & review"],
   ["annotation.submit", "Add a review comment", "Preview & review"],
+  ["annotations.copy", "Copy review feedback", "Preview & review"],
+  [
+    "annotations.prefill",
+    "Pre-fill agent with review feedback",
+    "Preview & review",
+  ],
 ];
 export const SHORTCUT_CATALOG: ShortcutDescription[] = descriptions.map(
   ([id, label, group]) => ({ id, label, group }),
