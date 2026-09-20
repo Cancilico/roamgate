@@ -17,23 +17,27 @@ const chrome =
     : Bun.which("google-chrome") || Bun.which("chromium"));
 
 test.skipIf(!chrome).each([
-  [1300, 1, "uiScale"],
-  [500, 1.25, "uiScale"],
-  [1300, 1, "taskPush"],
-  [390, 1, "taskPush"],
-  [1300, 1, "configuration"],
-  [390, 1.25, "configuration"],
-  [320, 1.5, "configuration"],
-  [1300, 1, "terminalLinks"],
-  [500, 1.25, "terminalLinks"],
-  [390, 1, "terminalLinks"],
-  [320, 1.5, "terminalLinks"],
-  [1300, 1, "terminalLinkProvider"],
-  [1300, 1, "diffViewer"],
-  [390, 1, "diffViewer"],
+  [1300, 1, "uiScale", 800, 100],
+  [500, 1.25, "uiScale", 800, 100],
+  [1300, 1, "taskPush", 800, 100],
+  [390, 1, "taskPush", 800, 100],
+  [1300, 1, "configuration", 800, 100],
+  [390, 1.25, "configuration", 800, 100],
+  [320, 1.5, "configuration", 800, 100],
+  [320, 1.5, "configuration", 800, 150],
+  [740, 1, "configuration", 360, 100],
+  [1300, 1, "terminalLinks", 800, 100],
+  [500, 1.25, "terminalLinks", 800, 100],
+  [390, 1, "terminalLinks", 800, 100],
+  [320, 1.5, "terminalLinks", 800, 100],
+  [1300, 1, "terminalLinkProvider", 800, 100],
+  [1300, 1, "diffViewer", 800, 100],
+  [390, 1, "diffViewer", 800, 100],
 ])(
-  "browser interactions preserve layout and input (width %d, DPR %d, %s)",
-  async (width, deviceScale, fixture) => {
+  "browser interactions preserve layout and input (width %d, DPR %d, %s, height %d, UI %d%%)",
+  async (width, deviceScale, fixture, height, scale) => {
+    const menuOnly =
+      fixture === "configuration" && (height < 800 || scale > 100);
     const dir = await mkdtemp(join(tmpdir(), "ui-scale-test-"));
     const { promise, resolve } = Promise.withResolvers<unknown>();
     const assets = new Map<string, Blob>();
@@ -108,6 +112,7 @@ test.skipIf(!chrome).each([
         assets.set(path, asset);
         if (
           fixture === "configuration" &&
+          !menuOnly &&
           asset.kind === "chunk" &&
           /function (ConfigurationDialog|MobileLayoutDialog)\(/.test(
             await asset.text(),
@@ -192,7 +197,7 @@ test.skipIf(!chrome).each([
         return result.result.value;
       };
       const waitFor = async (expression: string) => {
-        for (let i = 0; i < 160; i++) {
+        for (let i = 0; i < 800; i++) {
           if (await evaluate(expression)) return;
           await Bun.sleep(25);
         }
@@ -209,22 +214,30 @@ test.skipIf(!chrome).each([
       };
       await cdp("Emulation.setDeviceMetricsOverride", {
         width,
-        height: 800,
+        height,
         deviceScaleFactor: deviceScale,
         mobile: fixture === "terminalLinks" && width < 400,
       });
-      if (fixture === "terminalLinks" && width < 400)
+      if (
+        (fixture === "terminalLinks" && width < 400) ||
+        (fixture === "configuration" && width <= 768)
+      )
         await cdp("Emulation.setTouchEmulationEnabled", {
           enabled: true,
           maxTouchPoints: 5,
         });
-      await cdp("Page.navigate", { url: server.url.href });
+      const url = new URL(server.url);
+      if (menuOnly) {
+        url.searchParams.set("menuOnly", "1");
+        url.searchParams.set("scale", String(scale));
+      }
+      await cdp("Page.navigate", { url: url.href });
       // Navigation can acknowledge before the new document's viewport is parsed.
       await waitFor(
-        `location.href === ${JSON.stringify(server.url.href)} && document.readyState !== "loading"`,
+        `location.href === ${JSON.stringify(url.href)} && document.readyState !== "loading"`,
       );
       expect(await evaluate("innerWidth")).toBe(width);
-      if (fixture === "configuration") {
+      if (fixture === "configuration" && !menuOnly) {
         expect(heldChunks.size).toBe(2);
         for (const detail of [false, true]) {
           const selector = '[aria-label="Loading Configuration"]';
@@ -262,6 +275,42 @@ test.skipIf(!chrome).each([
             );
           }
           await waitFor(`!!document.querySelector('${selector}')`);
+          const raceDismissal = width === 390;
+          if (raceDismissal) {
+            await evaluate("configurationTest.loadingRace = true");
+            await evaluate(
+              `Promise.all(document.querySelector('${selector}').getAnimations().map(a => a.finished))`,
+            );
+            const { x, y } = await evaluate(`(() => {
+              const r = document.querySelector('${selector} .mobile-sheet-handle').getBoundingClientRect();
+              return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+            })()`);
+            await cdp("Input.dispatchTouchEvent", {
+              type: "touchStart",
+              touchPoints: [{ x, y }],
+            });
+            for (let step = 1; step <= 4; step++) {
+              await cdp("Input.dispatchTouchEvent", {
+                type: "touchMove",
+                touchPoints: [{ x, y: y + step * 16 }],
+              });
+              await evaluate(
+                "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+              );
+            }
+            await cdp("Input.dispatchTouchEvent", {
+              type: "touchEnd",
+              touchPoints: [],
+            });
+            // Hold the accepted exit open until lazy resolution replaces its fallback.
+            expect(
+              await evaluate(`(() => {
+              const exit = document.querySelector('${selector}').getAnimations().find(a => a.constructor.name === 'Animation');
+              exit?.pause();
+              return !!exit;
+            })()`),
+            ).toBe(true);
+          }
           // Release the requested dialog only; its nested editor remains delayed.
           for (const [path, gate] of heldChunks) {
             const source = await assets.get(path)!.text();
@@ -276,6 +325,24 @@ test.skipIf(!chrome).each([
             }
           }
           await waitFor(`!document.querySelector('${selector}')`);
+          if (raceDismissal) {
+            const loadedSelector = detail
+              ? '[aria-label="Layout Preferences"]'
+              : ".configuration-modal";
+            await waitFor(`!document.querySelector('${loadedSelector}')`);
+            await waitFor(
+              detail
+                ? 'document.activeElement.textContent.includes("Layout")'
+                : 'document.activeElement.getAttribute("aria-label") === "Menu"',
+            );
+            await evaluate(
+              detail
+                ? 'configurationTest.click("Layout")'
+                : 'configurationTest.click("Menu"); configurationTest.click("Configuration")',
+            );
+            await waitFor(`!!document.querySelector('${loadedSelector}')`);
+            await evaluate("configurationTest.loadingRace = false");
+          }
         }
       }
       const deadline = new Promise<never>((_, reject) => {

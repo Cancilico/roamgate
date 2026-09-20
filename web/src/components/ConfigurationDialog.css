@@ -3,7 +3,8 @@
   display: none;
 }
 
-.configuration-modal {
+.configuration-modal,
+.configuration-loading-modal {
   width: min(640px, 100%);
   max-height: min(760px, calc(100dvh / var(--ui-scale, 1) - 36px));
   display: flex;
@@ -52,6 +53,7 @@
   min-height: 0;
   padding: 4px 0;
   scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .configuration-setting-label {
@@ -73,7 +75,7 @@
   color: var(--muted);
 }
 
-.configuration-help-content {
+.popover-content.configuration-help-content {
   z-index: 6000;
   width: 360px;
   padding: 12px;
@@ -161,12 +163,49 @@
   min-width: 0;
 }
 
+:where(html[data-layout="mobile"]) {
+  .configuration-backdrop {
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 0 0;
+  }
+
+  .configuration-modal,
+  .configuration-loading-modal {
+    width: 100%;
+    max-height: min(100%, calc(90dvh / var(--ui-scale, 1)));
+    margin: auto 0 0;
+    padding: 0 calc(12px + env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      calc(12px + env(safe-area-inset-left, 0px));
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    animation: configuration-sheet-in 160ms ease-out;
+  }
+}
+
+@keyframes configuration-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .configuration-modal,
+  .configuration-loading-modal {
+    animation: none;
+  }
+}
+
 @media (max-width: 500px) {
   .configuration-tabs button {
     flex-basis: calc(50% - 4px);
   }
 
-  .configuration-modal {
+  :where(html:not([data-layout="mobile"])) .configuration-modal {
     padding: 12px;
   }
 

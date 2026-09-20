@@ -47,6 +47,7 @@ import { CloseButton } from "./CloseButton";
 import { MobileTerminalShortcutsDialog } from "./MobileTerminalShortcutsDialog";
 import { TerminalTransportSettings } from "./TerminalTransportSettings";
 import { ConfigurationLoadingDialog } from "./ConfigurationLoadingDialog";
+import { MobileSheetHandle } from "./MobileSheetHandle";
 import "./ConfigMenu.css";
 import "./ConfigurationDialog.css";
 
@@ -85,12 +86,17 @@ export type ConfigurationProps = {
   onCustomTerminalThemesChange: (themes: CustomTerminalTheme[]) => void;
 };
 const tabs = ["Appearance", "Behavior", "Connection", "Integrations"] as const;
+export type ConfigurationTab = (typeof tabs)[number];
 type Detail = "terminal" | "layout" | "keyboard" | "mobile" | "sync";
 
 export function ConfigurationDialog({
   onClose,
+  initialTab = "Appearance",
   ...props
-}: ConfigurationProps & { onClose: () => void }) {
+}: ConfigurationProps & {
+  onClose: () => void;
+  initialTab?: ConfigurationTab;
+}) {
   const { theme, accentColor, uiScale } = props;
   const s = useStoreSelector(
     (state) => ({
@@ -110,7 +116,7 @@ export function ConfigurationDialog({
     shallowEqual,
   );
   const connectionClient = useConnectionClient();
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Appearance");
+  const [tab, setTab] = useState<ConfigurationTab>(initialTab);
   const [detail, setDetail] = useState<Detail | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const detailTrigger = useRef<HTMLButtonElement | null>(null);
@@ -158,7 +164,7 @@ export function ConfigurationDialog({
       >
         <div
           ref={dialogRef}
-          className="modal configuration-modal"
+          className="modal configuration-modal mobile-sheet"
           role="dialog"
           aria-modal="true"
           aria-label="Configuration"
@@ -186,6 +192,7 @@ export function ConfigurationDialog({
             }
           }}
         >
+          <MobileSheetHandle label="Dismiss Configuration" onClose={onClose} />
           <div className="modal-head">
             <div>
               <h2>Configuration</h2>
