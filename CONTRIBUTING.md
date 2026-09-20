@@ -34,8 +34,11 @@ web assets required by process tests.
 | Browser regressions | `bun run test:browser` runs serially; Chrome-backed cases require Chrome/Chromium or `CHROME_BIN`, otherwise they skip. The setup-card test also runs in system WebKit on macOS. |
 | Submission | `bun run precommit` runs formatting, lint, full typechecks, and the full test suite. Quick checks do not replace it. |
 
-CI runs `test:quick` followed by `test:browser` to cover both suites. `bun run test`
-and the pre-commit gate retain the full serial suite.
+Pull-request CI runs formatting, lint, type checks, the site build, and
+`test:quick`. Browser regressions are optional: in GitHub Actions, select **CI**,
+choose **Run workflow**, select the branch, and enable **Run browser regressions**.
+The browser suite runs as a separate job. `bun run test` and the local pre-commit
+gate retain the full serial suite.
 
 Run `bun run install-hooks` once per clone to point Git at the tracked
 `.githooks/` directory; its `pre-commit` hook runs `bun run precommit`.

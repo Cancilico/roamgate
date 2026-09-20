@@ -14,6 +14,10 @@ const check = (condition: boolean, message: string) => {
   if (!condition) failures.push(message);
 };
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+const renderBoundary = () =>
+  new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
 const waitFor = async (predicate: () => boolean) => {
   for (let i = 0; i < 80 && !predicate(); i++) await settle();
   if (!predicate()) throw new Error("Timed out waiting for configuration");
@@ -69,21 +73,31 @@ const swipe = async (
       type: "touchMove",
       touchPoints: [{ x: x + (dx * step) / 6, y: y + (dy * step) / 6 }],
     });
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
+    await renderBoundary();
     frames.push(sheet.getBoundingClientRect());
   }
-  await input("Input.dispatchTouchEvent", {
-    type: cancel ? "touchCancel" : "touchEnd",
-    touchPoints: [],
-  });
+  const eventName = cancel ? "touchcancel" : "touchend";
+  let released = false;
+  const onRelease = () => {
+    released = true;
+  };
+  sheet.addEventListener(eventName, onRelease, { once: true });
+  try {
+    await input("Input.dispatchTouchEvent", {
+      type: cancel ? "touchCancel" : "touchEnd",
+      touchPoints: [],
+    });
+    // CDP can acknowledge before the renderer handles release and starts settling.
+    await waitFor(() => released);
+  } finally {
+    sheet.removeEventListener(eventName, onRelease);
+  }
   await Promise.all(
     sheet
       .getAnimations({ subtree: true })
       .map((animation) => animation.finished.catch(() => {})),
   );
-  await settle();
+  await renderBoundary();
   return frames;
 };
 const key = async (element: Element, value: string, shiftKey = false) => {
