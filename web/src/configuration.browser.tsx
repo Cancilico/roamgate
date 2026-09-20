@@ -38,7 +38,8 @@ const click = (label: string) => {
   element.focus();
   flushSync(() => element.click());
 };
-Object.assign(window, { configurationTest: { click } });
+const configurationTest = { click, loadingRace: false };
+Object.assign(window, { configurationTest });
 const fetchResult = window.fetch.bind(window);
 const input = async (method: string, params: Record<string, unknown>) => {
   const response = await fetchResult("/input", {
@@ -47,6 +48,43 @@ const input = async (method: string, params: Record<string, unknown>) => {
     body: JSON.stringify({ method, params }),
   });
   if (!response.ok) throw new Error("Trusted browser input failed");
+};
+const swipe = async (
+  element: Element,
+  dx: number,
+  dy: number,
+  cancel = false,
+) => {
+  const sheet = element.closest(".mobile-sheet") ?? element;
+  const frames: DOMRect[] = [];
+  const rect = element.getBoundingClientRect();
+  const x = rect.x + rect.width / 2;
+  const y = rect.y + rect.height / 2;
+  await input("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x, y }],
+  });
+  for (let step = 1; step <= 6; step++) {
+    await input("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: x + (dx * step) / 6, y: y + (dy * step) / 6 }],
+    });
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    frames.push(sheet.getBoundingClientRect());
+  }
+  await input("Input.dispatchTouchEvent", {
+    type: cancel ? "touchCancel" : "touchEnd",
+    touchPoints: [],
+  });
+  await Promise.all(
+    sheet
+      .getAnimations({ subtree: true })
+      .map((animation) => animation.finished.catch(() => {})),
+  );
+  await settle();
+  return frames;
 };
 const key = async (element: Element, value: string, shiftKey = false) => {
   (element as HTMLElement).focus();
@@ -196,7 +234,9 @@ bridge.connection = (id) => {
 };
 function Harness() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">("dark");
-  const [scale, setScale] = useState(100);
+  const [scale, setScale] = useState(
+    Number(new URLSearchParams(location.search).get("scale") ?? 100),
+  );
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.zoom = String(scale / 100);
   document.documentElement.style.setProperty("--ui-scale", String(scale / 100));
@@ -280,11 +320,191 @@ async function run() {
     ),
     "preferences still live in Menu",
   );
+  const mobile = document.documentElement.dataset.layout === "mobile";
+  if (mobile) {
+    for (const theme of ["dark", "light"]) {
+      document.documentElement.dataset.theme = theme;
+      const menu = document.querySelector<HTMLElement>(".config-dropdown")!;
+      const handle = menu.querySelector(".mobile-sheet-handle")!;
+      await Promise.all(
+        menu
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+      const compactRect = menu.getBoundingClientRect();
+      for (const label of [
+        "Configuration",
+        "Changelog",
+        "Reload page",
+        "Check for updates",
+        "Connection details",
+      ]) {
+        const original = button(label);
+        const rect = original.getBoundingClientRect();
+        check(
+          getComputedStyle(original).visibility === "visible" &&
+            (rect.bottom <= compactRect.bottom ||
+              menu.querySelector(".config-dropdown-content")!.scrollHeight >
+                menu.querySelector(".config-dropdown-content")!.clientHeight),
+          `default menu hides original action: ${label}`,
+        );
+      }
+      const moreButton = menu.querySelector(".mobile-sheet-more button")!;
+      check(
+        getComputedStyle(moreButton).visibility === "hidden",
+        "compact menu did not hide quick settings",
+      );
+      await swipe(handle, 0, -15);
+      check(
+        !menu.classList.contains("is-expanded"),
+        "short drag expanded menu",
+      );
+      await swipe(handle, 60, -10);
+      check(
+        !menu.classList.contains("is-expanded"),
+        "horizontal drag expanded menu",
+      );
+      await swipe(handle, 0, -60, true);
+      check(
+        !menu.classList.contains("is-expanded"),
+        `${theme}: accidental menu expansion`,
+      );
+      check(
+        Math.abs(menu.getBoundingClientRect().height - compactRect.height) < 1,
+        `cancelled expansion did not spring back: ${compactRect.height} -> ${menu.getBoundingClientRect().height}`,
+      );
+      const expandingFrames = await swipe(button("Configuration"), 0, -60);
+      check(
+        expandingFrames.some((frame) => frame.top < compactRect.top) &&
+          Math.abs(
+            compactRect.top -
+              expandingFrames[expandingFrames.length - 1].top -
+              Math.min(
+                60,
+                menu.getBoundingClientRect().height - compactRect.height,
+              ),
+          ) < 4,
+        `${theme}: menu expansion did not follow the finger`,
+      );
+      check(
+        menu.classList.contains("is-expanded") &&
+          menu.getBoundingClientRect().height > compactRect.height &&
+          getComputedStyle(moreButton).visibility === "visible" &&
+          getComputedStyle(menu.querySelector(".config-item-copy span")!)
+            .display === "none",
+        `${theme}: expansion must reveal buttons, not descriptions`,
+      );
+      const content = menu.querySelector(".config-dropdown-content")!;
+      if (content.scrollHeight > content.clientHeight) {
+        content.scrollTop = content.scrollHeight;
+        const scrollTop = content.scrollTop;
+        await swipe(handle, 0, -60, true);
+        check(
+          Math.abs(content.scrollTop - scrollTop) < 1,
+          "measuring sheet heights discarded the scroll position",
+        );
+        content.scrollTop = 0;
+      }
+      await swipe(handle, 0, -60);
+      check(
+        menu.classList.contains("is-expanded"),
+        "swipe generated a collapsing click",
+      );
+      const expandedTop = menu.getBoundingClientRect().top;
+      await swipe(button("Configuration"), 0, 60, true);
+      check(
+        menu.classList.contains("is-expanded"),
+        "cancelled drag collapsed the menu",
+      );
+      const collapsingFrames = await swipe(button("Configuration"), 0, 60);
+      check(
+        Math.abs(
+          collapsingFrames[collapsingFrames.length - 1].top -
+            expandedTop -
+            Math.min(60, compactRect.top - expandedTop),
+        ) < 2,
+        "menu collapse did not follow the finger",
+      );
+      check(
+        menu.isConnected &&
+          !menu.classList.contains("is-expanded") &&
+          Math.abs(menu.getBoundingClientRect().height - compactRect.height) <
+            1,
+        "expanded menu did not stop at its initial height",
+      );
+      check(
+        !document.querySelector(".configuration-modal"),
+        "drag activated the Configuration button",
+      );
+      button("Connection details").scrollIntoView({ block: "nearest" });
+      await swipe(button("Connection details"), 0, 0);
+      check(
+        button("Connection details").getAttribute("aria-expanded") === "true",
+        "tap after drag did not activate a menu button",
+      );
+      await swipe(button("Connection details"), 0, 0);
+      check(
+        button("Connection details").getAttribute("aria-expanded") === "false",
+        "menu tap did not toggle connection details",
+      );
+      menu.querySelector(".config-dropdown-content")!.scrollTop = 0;
+      const closingFrames = await swipe(
+        menu.querySelector(".config-summary")!,
+        0,
+        60,
+      );
+      check(
+        Math.abs(
+          closingFrames[closingFrames.length - 1].top - compactRect.top - 60,
+        ) < 2,
+        "menu dismissal did not follow the finger",
+      );
+      check(
+        !menu.isConnected && document.activeElement === button("Menu"),
+        "swipe down did not close menu and restore focus",
+      );
+      click("Menu");
+      check(
+        !document.querySelector(".config-dropdown.is-expanded"),
+        "menu did not reopen compact",
+      );
+      const reopenedMenu = document.querySelector(".config-dropdown")!;
+      await key(button("Show more menu options"), "Enter");
+      check(
+        !!document.querySelector(".config-dropdown.is-expanded"),
+        "keyboard could not expand menu",
+      );
+      click("Show fewer menu options");
+      await Promise.all(
+        reopenedMenu
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+      check(
+        Math.abs(
+          reopenedMenu.getBoundingClientRect().height - compactRect.height,
+        ) < 1,
+        "keyboard collapse did not restore compact height",
+      );
+    }
+  } else {
+    check(
+      !document
+        .querySelector<HTMLElement>(".mobile-sheet-handle")!
+        .getClientRects().length,
+      "desktop menu exposes mobile handle",
+    );
+  }
+  if (new URLSearchParams(location.search).has("menuOnly")) {
+    root.unmount();
+    return;
+  }
   click("Configuration");
   // Lazy mounting exposes the DOM before the dialog's focus effect runs.
   // Wait for focus before dispatching keys, or that effect can steal it back.
   await waitFor(
     () =>
+      !configurationTest.loadingRace &&
       !!document
         .querySelector(".configuration-modal")
         ?.contains(document.activeElement),
@@ -339,20 +559,50 @@ async function run() {
     dialog.scrollWidth <= dialog.clientWidth + 1,
     "configuration overflows horizontally",
   );
+  if (mobile) {
+    check(
+      Math.abs(rect.bottom - innerHeight) <= 1 && rect.left === 0,
+      "Configuration is not a bottom drawer",
+    );
+    const content = dialog.querySelector<HTMLElement>(
+      ".configuration-content",
+    )!;
+    if (content.scrollHeight > content.clientHeight) {
+      await swipe(content, 0, -60);
+      check(
+        content.scrollTop > 0 && dialog.isConnected,
+        "drawer content could not scroll independently",
+      );
+      content.scrollTop = Math.min(
+        20,
+        content.scrollHeight - content.clientHeight,
+      );
+      await swipe(content, 0, 60);
+      check(dialog.isConnected, "content scrolling dismissed the drawer");
+      content.scrollTop = 0;
+    }
+  } else {
+    check(
+      rect.left > 0 && rect.bottom < innerHeight,
+      "desktop Configuration became a drawer",
+    );
+  }
+  const firstControl = button(
+    mobile ? "Dismiss Configuration" : "Close Configuration",
+  );
   button("Done").focus();
   await key(button("Done"), "Tab");
-  check(
-    document.activeElement === button("Close Configuration"),
-    "Tab escaped Configuration",
-  );
-  await key(button("Close Configuration"), "Tab", true);
+  check(document.activeElement === firstControl, "Tab escaped Configuration");
+  await key(firstControl, "Tab", true);
   check(
     document.activeElement === button("Done"),
     "Shift+Tab escaped Configuration",
   );
   click("Layout");
   await waitFor(
-    () => !!document.querySelector("[aria-label='Layout Preferences']"),
+    () =>
+      !configurationTest.loadingRace &&
+      !!document.querySelector("[aria-label='Layout Preferences']"),
   );
   check(
     dialog.getClientRects().length === 0,
@@ -1023,6 +1273,74 @@ async function run() {
       document.activeElement === button("Menu"),
     "Escape did not close and restore focus",
   );
+  if (mobile) {
+    for (const tab of [
+      "Appearance",
+      "Behavior",
+      "Connection",
+      "Integrations",
+    ]) {
+      click("Menu");
+      click("Show more menu options");
+      const menu = document.querySelector(".config-dropdown")!;
+      await Promise.all(
+        menu
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+      click(tab);
+      await waitFor(() => !!document.querySelector(".configuration-modal"));
+      check(
+        button(tab).getAttribute("aria-selected") === "true",
+        `quick setting did not open ${tab}`,
+      );
+      click("Done");
+    }
+    for (const reducedMotion of [false, true]) {
+      await input("Emulation.setEmulatedMedia", {
+        features: [
+          {
+            name: "prefers-reduced-motion",
+            value: reducedMotion ? "reduce" : "no-preference",
+          },
+        ],
+      });
+      click("Menu");
+      click("Configuration");
+      await waitFor(() => !!document.querySelector(".configuration-modal"));
+      const drawer = document.querySelector<HTMLElement>(
+        ".configuration-modal",
+      )!;
+      await Promise.all(
+        drawer.getAnimations().map((animation) => animation.finished),
+      );
+      const top = drawer.getBoundingClientRect().top;
+      check(
+        getComputedStyle(drawer).transitionDuration ===
+          (reducedMotion ? "0s" : "0.2s"),
+        "drawer did not honor motion preference",
+      );
+      const surface = reducedMotion
+        ? button("Dismiss Configuration")
+        : drawer.querySelector(".configuration-content")!;
+      await swipe(surface, 0, 60, true);
+      check(
+        drawer.isConnected &&
+          Math.abs(drawer.getBoundingClientRect().top - top) < 1,
+        "cancelled swipe did not restore Configuration position",
+      );
+      const frames = await swipe(surface, 0, 60);
+      check(
+        Math.abs(frames[frames.length - 1].top - top - 60) < 2,
+        "scaled Configuration did not follow the finger",
+      );
+      check(
+        !document.querySelector(".configuration-modal") &&
+          document.activeElement === button("Menu"),
+        "drawer dismissal did not restore Menu focus",
+      );
+    }
+  }
   root.unmount();
 }
 run()

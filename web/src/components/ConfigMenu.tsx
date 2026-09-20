@@ -7,7 +7,10 @@ import {
   Download,
   ExternalLink,
   Focus,
+  Palette,
+  Plug,
   RefreshCw,
+  SlidersHorizontal,
   Server,
   Settings,
   Wifi,
@@ -18,9 +21,13 @@ import { useLayoutPreferences } from "../layoutPreferences";
 import { shortcutLabel, useShortcutPreferences } from "../shortcutPreferences";
 import { shallowEqual, store, useStoreSelector } from "../store";
 import { useConnectionClient } from "../useConnectionClient";
-import type { ConfigurationProps } from "./ConfigurationDialog";
+import type {
+  ConfigurationProps,
+  ConfigurationTab,
+} from "./ConfigurationDialog";
 import { ConfigurationLoadingDialog } from "./ConfigurationLoadingDialog";
 import { HerdrSetupCard } from "./HerdrSetupCard";
+import { MobileSheetHandle } from "./MobileSheetHandle";
 import "./ConfigMenu.css";
 
 const ConfigurationDialog = lazyWithReload("configuration", () =>
@@ -71,7 +78,9 @@ export function ConfigMenu({
       ? s.bridgeStatus?.clients
       : null;
   const [open, setOpen] = useState(false);
-  const [configurationOpen, setConfigurationOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [configurationTab, setConfigurationTab] =
+    useState<ConfigurationTab | null>(null);
   const [connectionDetailsOpen, setConnectionDetailsOpen] = useState(false);
   const [health, setHealth] = useState<{ socket?: string } | null>(null);
   const [herdrInfo, setHerdrInfo] = useState<{
@@ -81,8 +90,12 @@ export function ConfigMenu({
   const [herdrUnavailable, setHerdrUnavailable] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => {
+    setOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  };
   const closeConfiguration = useCallback(() => {
-    setConfigurationOpen(false);
+    setConfigurationTab(null);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   }, []);
 
@@ -143,7 +156,10 @@ export function ConfigMenu({
         <button
           ref={triggerRef}
           className={`topbar-button menu-button ${open ? "is-active" : ""}`}
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => {
+            setExpanded(false);
+            setOpen((value) => !value);
+          }}
           aria-label={updateAvailable ? "Menu, update available" : "Menu"}
           aria-controls={open ? CONFIG_MENU_ID : undefined}
           aria-expanded={open}
@@ -154,174 +170,214 @@ export function ConfigMenu({
         {open ? (
           <div
             id={CONFIG_MENU_ID}
-            className="config-dropdown"
+            className={`config-dropdown mobile-sheet${expanded ? " is-expanded" : ""}`}
             role="dialog"
             aria-label="Application menu"
           >
-            <div className="config-summary">
-              <div>
-                <strong>Roamgate</strong>
-                <span>Version {APP_VERSION}</span>
+            <MobileSheetHandle
+              label={
+                expanded ? "Show fewer menu options" : "Show more menu options"
+              }
+              expanded={expanded}
+              onExpand={() => setExpanded(true)}
+              onCollapse={() => setExpanded(false)}
+              onClose={closeMenu}
+              onClick={() => setExpanded((value) => !value)}
+            />
+            <div className="config-dropdown-content">
+              <div className="config-summary">
+                <div>
+                  <strong>Roamgate</strong>
+                  <span>Version {APP_VERSION}</span>
+                </div>
+                <span
+                  className={`config-connection-summary status-${s.connectionPaused ? "paused" : s.status}`}
+                >
+                  <span className="status-dot" />
+                  {s.connectionPaused ? "Paused" : s.status}
+                  {typeof clientCount === "number"
+                    ? ` · ${clientCount} client${clientCount === 1 ? "" : "s"}`
+                    : ""}
+                </span>
               </div>
-              <span
-                className={`config-connection-summary status-${s.connectionPaused ? "paused" : s.status}`}
-              >
-                <span className="status-dot" />
-                {s.connectionPaused ? "Paused" : s.status}
-                {typeof clientCount === "number"
-                  ? ` · ${clientCount} client${clientCount === 1 ? "" : "s"}`
-                  : ""}
-              </span>
-            </div>
-            <div className="config-section">
-              <ConfigMenuItem
-                icon={<Settings size={15} />}
-                label="Configuration"
-                description="Appearance, behavior, connections, and agent integrations"
-                className="config-menu-item-row"
-                onClick={() => {
-                  setOpen(false);
-                  setConfigurationOpen(true);
-                }}
-              />
-              {layout.mobile ? null : (
-                <div className="config-preference-row">
+              <div className="config-section">
+                <ConfigMenuItem
+                  icon={<Settings size={15} />}
+                  label="Configuration"
+                  description="Appearance, behavior, connections, and agent integrations"
+                  className="config-menu-item-row"
+                  onClick={() => {
+                    setOpen(false);
+                    setConfigurationTab("Appearance");
+                  }}
+                />
+                {layout.mobile ? null : (
+                  <div className="config-preference-row">
+                    <span className="config-item-icon">
+                      <Focus size={15} />
+                    </span>
+                    <div className="config-item-copy">
+                      <strong>Zen mode</strong>
+                      <span>
+                        {zenMode ? "Enabled" : "Disabled"} ·{" "}
+                        {shortcutLabel("zen.toggle")}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-label="Zen mode"
+                      aria-checked={zenMode}
+                      className={"settings-switch" + (zenMode ? " is-on" : "")}
+                      onClick={() => {
+                        onZenModeChange(!zenMode);
+                        setOpen(false);
+                      }}
+                    >
+                      <span />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="config-section config-section-tiles-3">
+                <div className="config-title">Help & updates</div>
+                <ConfigMenuItem
+                  icon={<ExternalLink size={15} />}
+                  label="Changelog"
+                  description="Recent changes on GitHub"
+                  onClick={() => {
+                    setOpen(false);
+                    window.open(RELEASES_URL, "_blank", "noopener,noreferrer");
+                  }}
+                />
+                <ConfigMenuItem
+                  icon={<RefreshCw size={15} />}
+                  label="Reload page"
+                  description="Refresh the application"
+                  onClick={() => {
+                    setOpen(false);
+                    reloadApplicationPage();
+                  }}
+                />
+                <ConfigMenuItem
+                  icon={<Download size={15} />}
+                  label={
+                    canInstallUpdate
+                      ? s.updateInstalling
+                        ? "Updating..."
+                        : `Update to ${updateVersion}`
+                      : updateAvailable
+                        ? `Version ${updateVersion} available`
+                        : "Check for updates"
+                  }
+                  description={
+                    canInstallUpdate
+                      ? "Install and restart"
+                      : updateAvailable
+                        ? "Automatic install unavailable"
+                        : "Check the release server"
+                  }
+                  primary={canInstallUpdate}
+                  disabled={s.updateInstalling}
+                  onClick={() => {
+                    setOpen(false);
+                    void store.updateOrCheck();
+                  }}
+                />
+              </div>
+              <div className="config-section">
+                <div className="config-title">Runtime</div>
+                <div className="config-runtime-row">
                   <span className="config-item-icon">
-                    <Focus size={15} />
+                    <Server size={15} />
                   </span>
                   <div className="config-item-copy">
-                    <strong>Zen mode</strong>
+                    <strong>Herdr server</strong>
                     <span>
-                      {zenMode ? "Enabled" : "Disabled"} ·{" "}
-                      {shortcutLabel("zen.toggle")}
+                      {herdrInfo?.version
+                        ? `Version ${herdrInfo.version}`
+                        : herdrUnavailable
+                          ? "Unavailable"
+                          : "Loading server information"}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-label="Zen mode"
-                    aria-checked={zenMode}
-                    className={"settings-switch" + (zenMode ? " is-on" : "")}
-                    onClick={() => {
-                      onZenModeChange(!zenMode);
-                      setOpen(false);
-                    }}
-                  >
-                    <span />
-                  </button>
+                  <code>
+                    {typeof herdrInfo?.protocol === "number"
+                      ? `Protocol ${herdrInfo.protocol}`
+                      : "-"}
+                  </code>
                 </div>
-              )}
-            </div>
-            <div className="config-section config-section-tiles-3">
-              <div className="config-title">Help & updates</div>
-              <ConfigMenuItem
-                icon={<ExternalLink size={15} />}
-                label="Changelog"
-                description="Recent changes on GitHub"
-                onClick={() => {
-                  setOpen(false);
-                  window.open(RELEASES_URL, "_blank", "noopener,noreferrer");
-                }}
-              />
-              <ConfigMenuItem
-                icon={<RefreshCw size={15} />}
-                label="Reload page"
-                description="Refresh the application"
-                onClick={() => {
-                  setOpen(false);
-                  reloadApplicationPage();
-                }}
-              />
-              <ConfigMenuItem
-                icon={<Download size={15} />}
-                label={
-                  canInstallUpdate
-                    ? s.updateInstalling
-                      ? "Updating..."
-                      : `Update to ${updateVersion}`
-                    : updateAvailable
-                      ? `Version ${updateVersion} available`
-                      : "Check for updates"
-                }
-                description={
-                  canInstallUpdate
-                    ? "Install and restart"
-                    : updateAvailable
-                      ? "Automatic install unavailable"
-                      : "Check the release server"
-                }
-                primary={canInstallUpdate}
-                disabled={s.updateInstalling}
-                onClick={() => {
-                  setOpen(false);
-                  void store.updateOrCheck();
-                }}
-              />
-            </div>
-            <div className="config-section">
-              <div className="config-title">Runtime</div>
-              <div className="config-runtime-row">
-                <span className="config-item-icon">
-                  <Server size={15} />
-                </span>
-                <div className="config-item-copy">
-                  <strong>Herdr server</strong>
-                  <span>
-                    {herdrInfo?.version
-                      ? `Version ${herdrInfo.version}`
-                      : herdrUnavailable
-                        ? "Unavailable"
-                        : "Loading server information"}
+                {herdrUnavailable ? (
+                  <HerdrSetupCard
+                    key={connectionClient.connectionId}
+                    enabled={
+                      !s.connectionPaused &&
+                      s.activeConnectionId === s.defaultConnectionId
+                    }
+                    compact
+                  />
+                ) : null}
+                <button
+                  type="button"
+                  className="config-details-toggle"
+                  aria-expanded={connectionDetailsOpen}
+                  onClick={() => setConnectionDetailsOpen((value) => !value)}
+                >
+                  <span className="config-item-icon">
+                    <Wifi size={15} />
                   </span>
-                </div>
-                <code>
-                  {typeof herdrInfo?.protocol === "number"
-                    ? `Protocol ${herdrInfo.protocol}`
-                    : "-"}
-                </code>
-              </div>
-              {herdrUnavailable ? (
-                <HerdrSetupCard
-                  key={connectionClient.connectionId}
-                  enabled={
-                    !s.connectionPaused &&
-                    s.activeConnectionId === s.defaultConnectionId
-                  }
-                  compact
-                />
-              ) : null}
-              <button
-                type="button"
-                className="config-details-toggle"
-                aria-expanded={connectionDetailsOpen}
-                onClick={() => setConnectionDetailsOpen((value) => !value)}
-              >
-                <span className="config-item-icon">
-                  <Wifi size={15} />
-                </span>
-                <span>Connection details</span>
+                  <span>Connection details</span>
+                  {connectionDetailsOpen ? (
+                    <ChevronDown size={15} />
+                  ) : (
+                    <ChevronRight size={15} />
+                  )}
+                </button>
                 {connectionDetailsOpen ? (
-                  <ChevronDown size={15} />
-                ) : (
-                  <ChevronRight size={15} />
-                )}
-              </button>
-              {connectionDetailsOpen ? (
-                <div className="config-details">
-                  <ConfigRow label="URL" value={location.origin} />
-                  <ConfigRow label="Socket" value={health?.socket ?? "-"} />
+                  <div className="config-details">
+                    <ConfigRow label="URL" value={location.origin} />
+                    <ConfigRow label="Socket" value={health?.socket ?? "-"} />
+                  </div>
+                ) : null}
+              </div>
+              {layout.mobile ? (
+                <div className="mobile-sheet-more" aria-hidden={!expanded}>
+                  <div className="mobile-sheet-more-content">
+                    <div className="config-section">
+                      <div className="config-title">Quick settings</div>
+                      {(
+                        [
+                          ["Appearance", Palette],
+                          ["Behavior", SlidersHorizontal],
+                          ["Connection", Server],
+                          ["Integrations", Plug],
+                        ] as const
+                      ).map(([name, Icon]) => (
+                        <ConfigMenuItem
+                          key={name}
+                          icon={<Icon size={15} />}
+                          label={name}
+                          onClick={() => {
+                            setOpen(false);
+                            setConfigurationTab(name);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
           </div>
         ) : null}
       </div>
-      {configurationOpen ? (
+      {configurationTab ? (
         <Suspense
           fallback={<ConfigurationLoadingDialog onClose={closeConfiguration} />}
         >
           <ConfigurationDialog
             {...configuration}
+            initialTab={configurationTab}
             onClose={closeConfiguration}
           />
         </Suspense>
@@ -341,7 +397,7 @@ function ConfigMenuItem({
 }: {
   icon: ReactNode;
   label: string;
-  description: string;
+  description?: string;
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
@@ -357,7 +413,7 @@ function ConfigMenuItem({
       <span className="config-item-icon">{icon}</span>
       <span className="config-item-copy">
         <strong>{label}</strong>
-        <span>{description}</span>
+        {description ? <span>{description}</span> : null}
       </span>
       <ChevronRight size={15} />
     </button>
