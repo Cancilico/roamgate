@@ -1457,6 +1457,14 @@ export function TerminalView({
         return false;
       }
       if (e.type === "keydown" && shortcutMatches(e, "terminal.copy")) {
+        // Keep native copy on the terminal textarea so Safari's IME focus is
+        // not interrupted by the clipboard fallback's temporary readonly input.
+        const nativeCopy =
+          !e.altKey &&
+          !e.shiftKey &&
+          (e.key.toLowerCase() === "c" || e.code === "KeyC") &&
+          (applePlatform ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey);
+        if (nativeCopy) return false;
         e.preventDefault();
         e.stopPropagation();
         const text = trimCopiedLinePadding(
