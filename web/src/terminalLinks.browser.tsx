@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { bridge, type ConnectionClient, type TerminalPush } from "./api";
 import { __storeTesting, store } from "./store";
-import { selectShortcutPreset } from "./shortcutPreferences";
+import { selectShortcutPreset, updateShortcut } from "./shortcutPreferences";
+import { detectShortcutPlatform } from "./shortcutBindings";
 import {
   initializeLayoutPreferences,
   updateLayoutPreferences,
@@ -557,6 +558,89 @@ async function runTouch() {
   );
 }
 
+async function runNativeCopy() {
+  await frame(["selected output"]);
+  await until(
+    () =>
+      term.buffer.active.getLine(0)?.translateToString(true) ===
+      "selected output",
+    "copy selection rendered",
+  );
+  term.focus();
+  term.select(0, 0, 15);
+  const textarea = term.textarea!;
+  let copyBlurs = 0;
+  const onCopyBlur = () => copyBlurs++;
+  textarea.addEventListener("blur", onCopyBlur);
+  const apple = detectShortcutPlatform() === "mac";
+  selectShortcutPreset(apple ? "mac" : "windows");
+  updateShortcut("terminal.copy", [apple ? "Meta+C" : "Ctrl+C"]);
+  const copyKey = new KeyboardEvent("keydown", {
+    key: "c",
+    code: "KeyC",
+    keyCode: 67,
+    metaKey: apple,
+    ctrlKey: !apple,
+    bubbles: true,
+    cancelable: true,
+  });
+  textarea.dispatchEvent(copyKey);
+  check(
+    copyKey.defaultPrevented,
+    false,
+    "native copy shortcut is not canceled",
+  );
+  check(copyBlurs, 0, "copy shortcut never blurs the IME textarea");
+  textarea.removeEventListener("blur", onCopyBlur);
+  const clipboardData = new DataTransfer();
+  textarea.dispatchEvent(
+    new ClipboardEvent("copy", {
+      clipboardData,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  check(
+    clipboardData.getData("text/plain"),
+    "selected output",
+    "native copy payload",
+  );
+  check(
+    document.activeElement === textarea && !textarea.readOnly,
+    true,
+    "copy keeps an editable terminal focused",
+  );
+  const inputBeforeCopy = calls.filter(
+    (call) => call.method === "terminal.input",
+  ).length;
+  textarea.value = "";
+  textarea.dispatchEvent(
+    new CompositionEvent("compositionstart", { bubbles: true }),
+  );
+  textarea.value = "\u4e2d\u6587";
+  textarea.dispatchEvent(
+    new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: textarea.value,
+    }),
+  );
+  await until(
+    () =>
+      calls.filter((call) => call.method === "terminal.input").length >
+      inputBeforeCopy,
+    "IME commit after copy",
+  );
+  check(
+    calls
+      .filter((call) => call.method === "terminal.input")
+      .slice(inputBeforeCopy)
+      .map((call) => call.params.data),
+    [btoa(String.fromCharCode(...new TextEncoder().encode("\u4e2d\u6587")))],
+    "IME commit after copy reaches the terminal once",
+  );
+  selectShortcutPreset("windows");
+}
+
 async function run() {
   render(100);
   await until(
@@ -1047,6 +1131,7 @@ async function run() {
     check(await pending, [], `delayed link cannot survive ${change}`);
     held = null;
   }
+  await runNativeCopy();
 }
 run()
   .catch((error: unknown) => failures.push(String(error)))
