@@ -26,7 +26,21 @@ See [compatibility](docs/DEPLOYMENT.md#herdr-compatibility).
 Switch across tabs/workspaces using the 12 most recently focused live panes plus
 the current layout. Use Up/Down; release the opening modifier or press Enter to
 switch, Esc to cancel. On macOS, hold Ctrl and repeat Tab (Shift reverses).
-Entries show workspace, tab/cwd, and agent status; closed panes leave history.
+Entries show workspace, tab, pane ID, cwd, and agent status; closed panes leave
+history. Press K while the switcher is open to start searching, even while
+holding the opening modifiers (and Shift when cycling backwards).
+
+### Pane Search
+
+`Alt+K` opens the same switcher in search mode over **every** live pane, not
+just recent ones, so a pane never visited stays reachable. Filter on workspace,
+tab, cwd, or agent name/status; terms match in any order, all must match, and
+results keep their recent-first order. Up/Down or Tab/Shift+Tab move, Enter
+switches, `Alt+K` or Esc closes. Search never commits on a modifier release, so
+it stays open while typing. K (including with the opening modifiers held) or
+`Alt+K` inside the recent switcher converts it in place without opening the
+command menu. The current pane stays listed for context, but selection starts on
+the first pane a jump can reach.
 
 ## Full Browser Terminal
 
@@ -256,6 +270,7 @@ Common defaults (Linux/Android exceptions follow):
 | Annotations | `Cmd+Option+A` | `Ctrl+Alt+A` |
 | Zen mode (desktop) | `Cmd+Shift+Z` | `Ctrl+Alt+Z` |
 | Recent pane switcher | `Ctrl+Tab` | `Ctrl+Alt+J` |
+| Search panes | `Alt+K` | `Alt+K` |
 | Create / close tab or pane | `Cmd+T` / `Cmd+W` | `Ctrl+Alt+T` / `Ctrl+Alt+W` |
 | Previous / next tab | `Cmd+Option+Left/Right` | `Alt+Shift+Left/Right` |
 | Focus neighboring pane | `Cmd+Ctrl+Arrow` | `Ctrl+Shift+Arrow` |
@@ -282,5 +297,6 @@ choose alternatives in the editor or use menus.
 Copy needs a selection; plain `Ctrl+C` remains terminal input. Page/half-page
 navigation and modified Enter are configurable. Native editing/IME/app keys
 remain available; remapped paste requires the Clipboard API. Touch shortcuts
-have a separate editor. Esc dismisses transient UI; Tab/arrows navigate controls;
+have a separate editor. Esc dismisses transient UI; Tab/arrows navigate controls,
+except in the pane switcher's search, which keeps typing in its field;
 Enter/Shift+Enter advances/reverses diff search.

@@ -119,6 +119,7 @@ import {
   type PaneJumpEntry,
   paneJumpEntries,
   paneJumpTargetId,
+  paneSearchEntries,
 } from "./paneJump";
 import {
   isTaskNotificationTarget,
@@ -607,39 +608,86 @@ function paneTitle(
 function PaneJumpOverlay({
   entries,
   selectedIndex,
+  search,
+  onSearchChange,
   onSelectIndex,
   onCommit,
+  onClose,
 }: {
   entries: PaneJumpEntry[];
   selectedIndex: number;
+  search: string | null;
+  onSearchChange: (value: string) => void;
   onSelectIndex: (index: number) => void;
   onCommit: (index: number) => void;
+  onClose: () => void;
 }) {
   const selectedItemRef = useRef<HTMLButtonElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searching = search !== null;
   const selectedPaneId = entries[selectedIndex]?.paneId;
 
   useEffect(() => {
     selectedItemRef.current?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex, selectedPaneId]);
+  useEffect(() => {
+    if (searching) searchInputRef.current?.focus();
+  }, [searching]);
 
-  if (entries.length === 0) return null;
+  if (entries.length === 0 && !searching) return null;
+  const listId = "pane-jump-list";
   return (
     <div className="pane-jump-backdrop">
-      <div
-        className="pane-jump-popover"
-        role="listbox"
-        aria-label="Recent panes"
-      >
+      <div className="pane-jump-popover">
         <div className="pane-jump-head">
-          <strong>Switch Pane</strong>
-          <span>Use Up / Down and Enter, or release the opening modifier</span>
+          <strong>{searching ? "Find Pane" : "Switch Pane"}</strong>
+          <span>
+            {searching
+              ? "Filters every open pane. Use Up / Down and Enter"
+              : "K to search; Enter or release modifier to switch"}
+          </span>
         </div>
-        <div className="pane-jump-list">
+        {searching ? (
+          <input
+            ref={searchInputRef}
+            className="pane-jump-search"
+            type="text"
+            value={search}
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="Workspace, tab, directory, or agent"
+            role="combobox"
+            aria-label="Search panes"
+            aria-expanded={true}
+            aria-autocomplete="list"
+            aria-controls={listId}
+            aria-activedescendant={
+              selectedPaneId
+                ? `${listId}-${encodeURIComponent(selectedPaneId)}`
+                : undefined
+            }
+            onChange={(event) => onSearchChange(event.target.value)}
+            onBlur={() => onClose()}
+          />
+        ) : null}
+        {entries.length === 0 ? (
+          <p className="pane-jump-empty" role="status">
+            No panes match this search.
+          </p>
+        ) : null}
+        <div
+          className="pane-jump-list"
+          id={listId}
+          role="listbox"
+          aria-label={searching ? "Matching panes" : "Recent panes"}
+        >
           {entries.map((entry, index) => (
             <button
               key={entry.paneId}
+              id={`${listId}-${encodeURIComponent(entry.paneId)}`}
               ref={index === selectedIndex ? selectedItemRef : undefined}
               type="button"
+              tabIndex={-1}
               className={`pane-jump-item ${
                 index === selectedIndex ? "is-selected" : ""
               } ${entry.current ? "is-current" : ""}`}
@@ -682,6 +730,9 @@ function PaneJumpOverlay({
                   ) : null}
                   {entry.subtitle}
                 </span>
+              </span>
+              <span className="pane-jump-id" title={entry.paneId}>
+                {entry.paneLabel}
               </span>
             </button>
           ))}
@@ -1181,10 +1232,13 @@ export default function App() {
     useState(false);
   const [paneJumpOpen, setPaneJumpOpen] = useState(false);
   const [paneJumpIndex, setPaneJumpIndex] = useState(0);
+  // null keeps the most-recently-used list; a string switches to typed search.
+  const [paneJumpSearch, setPaneJumpSearch] = useState<string | null>(null);
   const paneJumpModifierRef = useRef<"ctrlKey" | "altKey" | "metaKey" | null>(
     null,
   );
   const paneJumpIndexRef = useRef(0);
+  const paneJumpReturnFocusRef = useRef<HTMLElement | null>(null);
   const [inspectorState, setInspectorState] =
     useState<WorkspaceInspectorState | null>(null);
   const inspectorStateRef = useRef<WorkspaceInspectorState | null>(null);
@@ -1311,20 +1365,26 @@ export default function App() {
       update,
     );
   }, [activeTerminalComposerDraftKey]);
-  const paneJumpOptions = useMemo(
-    () =>
-      paneJumpEntries(
-        {
-          layout: s.layout,
-          panes: s.panes,
-          recentPaneIds: s.recentPaneIds,
-          tabs: s.tabs,
-          workspaces: s.workspaces,
-        },
-        activePaneId,
-      ),
-    [activePaneId, s.layout, s.panes, s.recentPaneIds, s.tabs, s.workspaces],
-  );
+  const paneJumpOptions = useMemo(() => {
+    const snapshot = {
+      layout: s.layout,
+      panes: s.panes,
+      recentPaneIds: s.recentPaneIds,
+      tabs: s.tabs,
+      workspaces: s.workspaces,
+    };
+    return paneJumpSearch === null
+      ? paneJumpEntries(snapshot, activePaneId)
+      : paneSearchEntries(snapshot, paneJumpSearch, activePaneId);
+  }, [
+    activePaneId,
+    paneJumpSearch,
+    s.layout,
+    s.panes,
+    s.recentPaneIds,
+    s.tabs,
+    s.workspaces,
+  ]);
   const activePaneHasAgent = paneHasAgentHistory(activePane);
   const historyInspectorOpen =
     inspectorState?.open === true && inspectorState.view === "history";
@@ -2380,9 +2440,19 @@ export default function App() {
     return () =>
       window.removeEventListener(WORKTREE_REMOVED_EVENT, handleWorktreeRemoved);
   }, [commitInspectorState, connectionClient]);
-  const closePaneJump = useCallback(() => {
+  const closePaneJump = useCallback((restoreFocus = false) => {
+    const target = paneJumpReturnFocusRef.current;
+    const source = document.activeElement;
+    paneJumpReturnFocusRef.current = null;
     paneJumpModifierRef.current = null;
+    setPaneJumpSearch(null);
     setPaneJumpOpen(false);
+    if (restoreFocus && target) {
+      // Wait for unmount, without stealing focus from a new user selection.
+      requestAnimationFrame(() => {
+        if (target.isConnected) focusIfUnchanged(target, source);
+      });
+    }
   }, []);
   const selectPaneJumpIndex = useCallback(
     (index: number) => {
@@ -2396,7 +2466,7 @@ export default function App() {
   const commitPaneJump = useCallback(
     (index = paneJumpIndexRef.current) => {
       const targetPaneId = paneJumpTargetId(paneJumpOptions, index);
-      closePaneJump();
+      closePaneJump(!targetPaneId);
       if (!targetPaneId) return;
       if (!inspectorStateRef.current?.open) setMobileView("session");
       void store.focusPane(targetPaneId);
@@ -2415,6 +2485,25 @@ export default function App() {
     );
     return previousPaneIndex >= 0 ? previousPaneIndex : 0;
   }, [paneJumpOptions]);
+  // Typed search drops the held modifier: releasing it must keep the list open
+  // instead of committing the way the recent switcher does.
+  const openPaneJumpSearch = useCallback(() => {
+    if (store.get().panes.length === 0) return;
+    paneJumpReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    paneJumpModifierRef.current = null;
+    paneJumpIndexRef.current = 0;
+    setPaneJumpIndex(0);
+    setPaneJumpSearch("");
+    setPaneJumpOpen(true);
+  }, []);
+  const changePaneJumpSearch = useCallback((value: string) => {
+    paneJumpIndexRef.current = 0;
+    setPaneJumpIndex(0);
+    setPaneJumpSearch(value);
+  }, []);
 
   useLayoutEffect(() => {
     if (resourceRuntimeKeyRef.current === resourceUiKey) return;
@@ -2431,8 +2520,10 @@ export default function App() {
     setDeliveredPaneId(null);
     setAnnotationsOpen(false);
     setFocusedAnnotationId(null);
+    paneJumpReturnFocusRef.current = null;
     setPaneJumpOpen(false);
     setPaneJumpIndex(0);
+    setPaneJumpSearch(null);
     setMobileView("session");
   }, [commitInspectorState, resourceUiKey]);
 
@@ -2555,8 +2646,17 @@ export default function App() {
     if (!historyPane || historyPane.pane_id === current.originPaneId) return;
     commitInspectorState({ ...current, originPaneId: historyPane.pane_id });
   }, [commitInspectorState, s]);
+  // Search keeps the current pane listed for context, but focusing it is a
+  // no-op, so selection lands on the first entry a jump can actually reach.
   useEffect(() => {
-    if (paneJumpOpen && paneJumpOptions.length === 0) closePaneJump();
+    if (!paneJumpOpen || paneJumpSearch === null) return;
+    if (!paneJumpOptions[paneJumpIndexRef.current]?.current) return;
+    const target = paneJumpOptions.findIndex((entry) => !entry.current);
+    if (target >= 0) selectPaneJumpIndex(target);
+  }, [paneJumpOpen, paneJumpOptions, paneJumpSearch, selectPaneJumpIndex]);
+  useEffect(() => {
+    if (paneJumpOpen && paneJumpSearch === null && paneJumpOptions.length === 0)
+      closePaneJump();
     if (paneJumpIndexRef.current >= paneJumpOptions.length) {
       selectPaneJumpIndex(paneJumpOptions.length - 1);
     }
@@ -2564,6 +2664,7 @@ export default function App() {
     closePaneJump,
     paneJumpOpen,
     paneJumpOptions.length,
+    paneJumpSearch,
     selectPaneJumpIndex,
   ]);
   useLayoutEffect(() => {
@@ -2653,6 +2754,40 @@ export default function App() {
           e.key === "ArrowUp" ||
           e.key === "Enter" ||
           e.key === "Escape";
+        const paneJumpSearchShortcut = shortcutMatches(e, "panes.search");
+        if (paneJumpSearch !== null) {
+          if (paneJumpSearchShortcut || paneJumpNavigationKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (paneJumpSearchShortcut && e.repeat) return;
+            if (paneJumpSearchShortcut || e.key === "Escape")
+              closePaneJump(true);
+            else if (e.key === "Tab")
+              movePaneJumpSelection(e.shiftKey ? -1 : 1);
+            else if (e.key === "ArrowDown") movePaneJumpSelection(1);
+            else if (e.key === "ArrowUp") movePaneJumpSelection(-1);
+            else commitPaneJump();
+          } else if (shortcutMatches(e, "panes.recent")) {
+            e.preventDefault();
+            e.stopPropagation();
+            movePaneJumpSelection(e.shiftKey ? -1 : 1);
+          }
+          // Every other key belongs to the search field, and no workspace
+          // shortcut may fire while it has focus.
+          return;
+        }
+        // Keep the opening modifiers held: Ctrl+K on macOS, Ctrl+Alt+K
+        // on Windows/Linux, and Shift when cycling backwards.
+        if (
+          paneJumpSearchShortcut ||
+          e.code === "KeyK" ||
+          e.key.toLowerCase() === "k"
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          openPaneJumpSearch();
+          return;
+        }
         if (paneJumpNavigationKey) {
           e.preventDefault();
           e.stopPropagation();
@@ -2695,6 +2830,13 @@ export default function App() {
         } else if (paneJumpOpen) {
           movePaneJumpSelection(e.shiftKey ? -1 : 1);
         }
+        return;
+      }
+      if (shortcutMatches(e, "panes.search")) {
+        if (isEditableElement(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openPaneJumpSearch();
         return;
       }
       if (e.key === "Escape") {
@@ -2909,9 +3051,11 @@ export default function App() {
     defaultPaneJumpIndex,
     movePaneJumpSelection,
     mobile,
+    openPaneJumpSearch,
     openWorkspaces,
     paneJumpOpen,
     paneJumpOptions.length,
+    paneJumpSearch,
     selectPaneJumpIndex,
     setInspectorExpanded,
     toggleAnnotations,
@@ -3767,8 +3911,11 @@ export default function App() {
         <PaneJumpOverlay
           entries={paneJumpOptions}
           selectedIndex={paneJumpIndex}
+          search={paneJumpSearch}
+          onSearchChange={changePaneJumpSearch}
           onSelectIndex={selectPaneJumpIndex}
           onCommit={commitPaneJump}
+          onClose={closePaneJump}
         />
       ) : null}
     </div>
