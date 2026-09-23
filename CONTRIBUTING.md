@@ -2,7 +2,8 @@
 
 ## Development Setup
 
-Use Bun 1.4.1+ (CI: 1.4.1) and a running local Herdr server:
+Use Bun 1.4.1+ (CI: 1.4.1), Node ^20.19.0 or >=22.12.0 for Vite 7,
+and a running local Herdr server:
 
 ```bash
 bun install --frozen-lockfile
