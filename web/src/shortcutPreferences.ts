@@ -42,6 +42,7 @@ const LATE_SHORTCUT_IDS: ShortcutId[] = [
   "annotations.prefill",
   "panes.search",
   "plugin.herdrFloat.toggle",
+  "terminal.ctrlEnter",
 ];
 export function validateShortcutPreset(value: unknown): ShortcutPreset {
   if (!value || typeof value !== "object")
