@@ -98,6 +98,7 @@ export function createLegacyConnectionRuntime(args: {
   config: SshTunnelConfig;
   logger?: Logger;
   safeSend: SafeSend;
+  broadcast?: (payload: string, context?: string) => void;
   clientLabel: (ws: ServerWebSocket<unknown>) => string;
   markRpcError: MarkRpcError;
   onEvent: (event: unknown, identity: ConnectionIdentity) => void;
@@ -214,6 +215,7 @@ export function createLegacyConnectionRuntime(args: {
   });
   const terminalBridge = createTerminalBridge({
     connectionId: identity.id,
+    broadcast: args.broadcast,
     logger: logger.child("terminal"),
     connectionGeneration: args.connectionGeneration,
     formatError: sanitizeConnectionError,
@@ -235,6 +237,14 @@ export function createLegacyConnectionRuntime(args: {
         5000,
       );
       assertEndpointCreationSource(source, result?.pane);
+    },
+    focusedWorkspaceId: async () => {
+      const result = await herdr.call("workspace.list", {}, 5000);
+      return (
+        result?.workspaces?.find(
+          (workspace: { focused?: boolean }) => workspace.focused,
+        )?.workspace_id ?? null
+      );
     },
     lookupPaneId: async (terminalId) => {
       try {
@@ -363,6 +373,8 @@ export function createLegacyConnectionRuntime(args: {
     taskEvents.handleHerdrEvent(event);
     lastStepTurns.handleHerdrEvent(event);
     agentStatusSubscriptions.handleHerdrEvent(event);
+    if ((event as { event?: string })?.event === "workspace.focused")
+      terminalBridge.refreshPopupObserverFocus();
     args.onEvent(event, identity);
   };
   const onHerdrError = (error: unknown) => args.onError?.(error, identity);
