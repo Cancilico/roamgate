@@ -410,8 +410,12 @@ class DiffRenderBoundary extends Component<
   }
 }
 
+let nextPatchCacheKey = 0;
+
 export function highlightedPatch(patch: string, path: string) {
   const diff = getSingularPatch(patch);
+  // Pierre 1.4 no longer assigns keys; each parsed patch needs its own worker cache entry.
+  diff.cacheKey = `patch:${++nextPatchCacheKey}`;
   const language = diffSyntaxLanguageForPath(path);
   // Pierre applies lang to both sides; let it infer each side of a language-changing rename.
   if (!diff.prevName || diffSyntaxLanguageForPath(diff.prevName) === language)
