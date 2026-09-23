@@ -238,36 +238,45 @@ describe("shortcut matching and validation", () => {
       ),
     ).toBeNull();
   });
-  test("terminal remapping preserves bytes and does not send on keyup or composition", () => {
-    const bindings = linux();
-    bindings["terminal.multiline"] = ["Ctrl+Alt+Enter"];
-    const key = {
-      type: "keydown",
-      key: "Enter",
-      code: "Enter",
-      keyCode: 13,
-      ctrlKey: true,
-      altKey: true,
-      shiftKey: false,
-      metaKey: false,
-      isComposing: false,
-    };
-    expect(terminalShortcutSequence(key, bindings)).toBe("\x1b[13;2u");
-    expect(
-      terminalShortcutSequence(
-        { ...key, ctrlKey: false, altKey: false, shiftKey: true },
-        bindings,
-      ),
-    ).toBeNull();
-    expect(
-      terminalShortcutSequence({ ...key, type: "keyup" }, bindings),
-    ).toBeNull();
-    expect(
-      terminalShortcutSequence({ ...key, isComposing: true }, bindings),
-    ).toBeNull();
-    bindings["terminal.multiline"] = [];
-    expect(terminalShortcutSequence(key, bindings)).toBeNull();
-  });
+  test.each([
+    ["terminal.multiline", "\x1b[13;2u", { shiftKey: true }],
+    ["terminal.ctrlEnter", "\x1b[13;5u", { ctrlKey: true }],
+  ] as const)(
+    "%s remapping preserves bytes and ignores keyup and composition",
+    (id, sequence, modifiers) => {
+      const bindings = linux();
+      bindings[id] = ["Ctrl+Alt+Enter"];
+      const key = {
+        type: "keydown",
+        key: "Enter",
+        code: "Enter",
+        keyCode: 13,
+        ctrlKey: true,
+        altKey: true,
+        shiftKey: false,
+        metaKey: false,
+        isComposing: false,
+      };
+      expect(terminalShortcutSequence(key, bindings)).toBe(sequence);
+      expect(
+        terminalShortcutSequence(
+          { ...key, ctrlKey: false, altKey: false, ...modifiers },
+          bindings,
+        ),
+      ).toBeNull();
+      expect(
+        terminalShortcutSequence({ ...key, type: "keyup" }, bindings),
+      ).toBeNull();
+      expect(
+        terminalShortcutSequence({ ...key, isComposing: true }, bindings),
+      ).toBeNull();
+      expect(
+        terminalShortcutSequence({ ...key, keyCode: 229 }, bindings),
+      ).toBeNull();
+      bindings[id] = [];
+      expect(terminalShortcutSequence(key, bindings)).toBeNull();
+    },
+  );
 });
 
 describe("shortcut preset persistence and exchange", () => {
@@ -313,6 +322,30 @@ describe("shortcut preset persistence and exchange", () => {
       "Preset names",
     );
   });
+});
+
+test("older presets gain Ctrl+Enter without replacing saved terminal keys", () => {
+  for (const base of ["mac", "windows", "linux"] as const) {
+    const defaults = defaultShortcutBindings(base);
+    const bindings: Partial<ShortcutBindings> = { ...defaults };
+    delete bindings["terminal.ctrlEnter"];
+    expect(
+      validateShortcutPreset({ ...preset(), base, bindings }).bindings,
+    ).toEqual(defaults);
+
+    bindings["terminal.multiline"] = ["Ctrl+Enter"];
+    const loaded = validateShortcutPreset({ ...preset(), base, bindings });
+    expect(loaded.bindings["terminal.multiline"]).toEqual(["Ctrl+Enter"]);
+    expect(loaded.bindings["terminal.ctrlEnter"]).toEqual([]);
+
+    bindings["terminal.multiline"] = defaults["terminal.multiline"];
+    bindings["terminal.ctrlEnter"] = [];
+    expect(
+      validateShortcutPreset({ ...preset(), base, bindings }).bindings[
+        "terminal.ctrlEnter"
+      ],
+    ).toEqual([]);
+  }
 });
 
 test("older presets gain panel shortcuts without replacing saved assignments", () => {
@@ -362,6 +395,7 @@ test("older presets gain annotation delivery shortcuts without replacing saved k
     ).toEqual(defaults);
 
     delete bindings["terminal.copy"];
+    delete bindings["terminal.ctrlEnter"];
     bindings["annotation.submit"] = [];
     bindings["composer.send"] = [];
     bindings["tab.create"] = defaults["annotations.copy"];
