@@ -435,6 +435,7 @@ function runtimeFactoryForProfile(
         },
         clientLabel,
         markRpcError,
+        taskNotificationSource: config.taskNotificationSource,
         onTaskEvent: (event) => {
           const connections = connectionProfiles.list();
           webPush.notify(
@@ -1396,6 +1397,8 @@ function main() {
                   connection_id: true,
                   connection_scoped_http: true,
                   connection_runtime_generation: true,
+                  herdr_task_notifications:
+                    config.taskNotificationSource === "herdr",
                 },
               }),
               "hello",

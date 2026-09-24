@@ -243,8 +243,9 @@ separate for desktop/mobile. Jump from a diff to its file preview.
   native local profiles. [Connection setup](docs/DEPLOYMENT.md#multiple-and-remote-herdr-connections).
 - Browsers receive pushed events; inspect client counts or pause/resume clients.
   **Configuration > Behavior > Task notifications** independently enables
-  input-required/completed alerts. **Background push** works without an active
-  page; **Active page only** does not. Delivery is best-effort.
+  input-required/completed alerts, following Herdr's own notification decisions
+  by default. **Background push** works without an active page; **Active page
+  only** does not. Delivery is best-effort.
   [Web Push setup and revocation](docs/DEPLOYMENT.md#web-push-notifications).
 - Choose light/dark/system appearance, accents, built-in/custom terminal themes,
   and UI text size (80%–150%). Preferences stay in this browser.

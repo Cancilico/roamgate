@@ -855,7 +855,8 @@ function maybeShowBrowserTaskNotification(
   title: string,
   body: string,
   tag: string,
-  target: TaskNotificationTarget,
+  scope: Pick<TaskNotificationTarget, "connectionId" | "runtimeGeneration">,
+  target: TaskNotificationTarget | null,
 ) {
   if (
     !state.taskNotificationsEnabled ||
@@ -880,7 +881,7 @@ function maybeShowBrowserTaskNotification(
     () =>
       state.taskNotificationsEnabled &&
       version === taskNotificationPreferenceVersion &&
-      taskNotificationTargetIsCurrent(state, target),
+      taskNotificationTargetIsCurrent(state, scope),
   ).catch((error) => reportTaskNotificationFailure(error, version));
 }
 
@@ -971,6 +972,110 @@ function notifyTaskCompleted(pane: Pane, workspaces: Workspace[], tabs: Tab[]) {
     body,
     taskNotificationTag(target),
     target,
+    target,
+  );
+}
+
+/** Server-relayed Herdr SemanticNotification (`roamgate.task_notification`). */
+export interface HerdrTaskNotification {
+  kind: "completed" | "blocked";
+  agent: string;
+  title: string;
+  body: string | null;
+  workspaceId: string | null;
+  paneId: string | null;
+}
+
+function optionalEventText(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+export function parseHerdrTaskNotification(
+  data: Record<string, unknown>,
+): HerdrTaskNotification | null {
+  const kind = data.kind;
+  const title = optionalEventText(data.title);
+  if ((kind !== "completed" && kind !== "blocked") || !title) return null;
+  return {
+    kind,
+    agent: optionalEventText(data.agent) ?? "Agent",
+    title,
+    body: optionalEventText(data.body),
+    workspaceId: optionalEventText(data.workspace_id),
+    paneId: optionalEventText(data.pane_id),
+  };
+}
+
+/** True when the bridge relays Herdr's notification decisions. */
+export function herdrTaskNotificationsActive(hello = bridge.hello): boolean {
+  return hello?.capabilities?.herdr_task_notifications === true;
+}
+
+function documentIsVisible() {
+  return (
+    typeof document === "undefined" || document.visibilityState === "visible"
+  );
+}
+
+function notifyHerdrTask(
+  connectionId: string,
+  notification: HerdrTaskNotification,
+) {
+  if (
+    !state.taskNotificationsEnabled ||
+    !state.taskNotificationPreferences[notification.kind]
+  )
+    return;
+  const runtimeGeneration = state.serverRuntimeGeneration;
+  if (runtimeGeneration === null) return;
+  const { workspaceId, paneId } = notification;
+  // Someone looking at the pane already sees it; Herdr stays the policy owner.
+  if (
+    paneId &&
+    paneId === activePaneIdForTaskNotifications(state) &&
+    documentIsVisible()
+  )
+    return;
+  const scope = { connectionId, runtimeGeneration };
+  const target =
+    workspaceId && paneId
+      ? taskNotificationTarget(connectionId, runtimeGeneration, {
+          workspace_id: workspaceId,
+          pane_id: paneId,
+        })
+      : null;
+  const detail = notification.body ?? notification.agent;
+  const blocked = notification.kind === "blocked";
+  set({
+    notice: {
+      kind: blocked ? "info" : "success",
+      message: notification.title,
+      detail,
+      ...(target
+        ? {
+            actionLabel: "Open agent",
+            actionConnectionId: connectionId,
+            actionRuntimeGeneration: runtimeGeneration,
+            actionWorkspaceId: target.workspaceId,
+            actionPaneId: target.paneId,
+          }
+        : {}),
+      autoDismissMs: TASK_COMPLETED_TOAST_DISMISS_MS,
+    },
+  });
+  maybeShowBrowserTaskNotification(
+    notification.title,
+    detail,
+    target
+      ? taskNotificationTag(target)
+      : JSON.stringify([
+          "roamgate-task",
+          connectionId,
+          runtimeGeneration,
+          notification.title,
+        ]),
+    scope,
+    target,
   );
 }
 
@@ -999,6 +1104,8 @@ function notifyCompletedTasks(
   tabs: Tab[],
 ) {
   if (!leaseIsCurrent(lease)) return;
+  // The bridge relays Herdr's own notifications instead; see notifyHerdrTask.
+  if (herdrTaskNotificationsActive()) return;
   const activePaneId = activePaneIdForTaskNotifications(state);
   for (const pane of completed) {
     if (!leaseIsCurrent(lease)) return;
@@ -1945,6 +2052,11 @@ function handleHerdrEvent(event: HerdrEventMsg) {
       event.connection_generation,
     )
   ) {
+    if (event.event === "roamgate.task_notification") {
+      const notification = parseHerdrTaskNotification(event.data);
+      if (notification) notifyHerdrTask(event.connection_id, notification);
+      return;
+    }
     if (
       event.event === "workspace.last_step_completed" &&
       typeof event.data.workspace_id === "string"
