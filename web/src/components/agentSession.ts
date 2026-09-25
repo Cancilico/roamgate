@@ -47,7 +47,7 @@ export function agentStateKind(status?: string): AgentStateKind {
 
 export function shouldShowAgentStatusLabel(status?: string): boolean {
   const kind = agentStateKind(status);
-  return kind !== "idle" && kind !== "unknown";
+  return kind !== "idle";
 }
 
 const AGENT_STATE_PRIORITY: Record<AgentStateKind, number> = {

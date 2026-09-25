@@ -7,7 +7,7 @@ import {
 import { store, useStoreSelector } from "../store";
 import type { Pane } from "../types";
 import { agentClass, basename, shortId } from "../utils";
-import { shouldShowAgentStatusLabel } from "./agentSession";
+import { agentStateKind, shouldShowAgentStatusLabel } from "./agentSession";
 import { AgentStatusIcon } from "./AgentStatusIcon";
 import { observeClampedContextMenu } from "./contextMenuPosition";
 import { TREE_DEPTH_INDENT } from "./treeIndent";
@@ -91,7 +91,8 @@ export function AgentRow({
   const openMenu = (x: number, y: number) => {
     onOpenMenu(x, y);
   };
-  const showStatus = shouldShowAgentStatusLabel(pane.agent_status);
+  const status = agentStateKind(pane.agent_status);
+  const showStatus = shouldShowAgentStatusLabel(status);
   const nested = variant === "nested";
   const locationName = agentLocationName(pane);
 
@@ -219,7 +220,7 @@ export function AgentRow({
             <span
               className={`${agentClass(pane.agent_status)} agent-row-status`}
             >
-              {pane.agent_status}
+              {status === "unknown" ? "Unknown" : status}
             </span>
           ) : null}
         </div>
