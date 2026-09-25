@@ -133,6 +133,10 @@ import {
   terminalPasteRequest,
 } from "../terminalPaste";
 import {
+  isWorkspacePathDrag,
+  workspacePathFromDrag,
+} from "../workspacePathDrag";
+import {
   readTerminalRecoveryReloadAt,
   shouldArmTerminalRecoveryResume,
   shouldReloadTerminalAfterResume,
@@ -1856,6 +1860,31 @@ export function TerminalView({
     container.addEventListener("paste", onPaste);
     document.addEventListener("paste", onPaste, { capture: true });
 
+    // A path dragged from the file explorer is typed like a paste, so agents
+    // and shells receive it at the cursor of the active pane.
+    const onPathDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer || !isWorkspacePathDrag(e.dataTransfer)) return;
+      if (!acceptsInput()) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    };
+    const onPathDrop = (e: DragEvent) => {
+      if (!e.dataTransfer || !isWorkspacePathDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const path = workspacePathFromDrag(e.dataTransfer);
+      if (!path || !acceptsInput()) return;
+      const destinationPaneId = paneIdRef.current ?? null;
+      term.focus();
+      void runPasteOperation(() => pasteText(path, destinationPaneId)).catch(
+        (err) => {
+          setUploadError(`Path paste failed: ${(err as Error).message}`);
+        },
+      );
+    };
+    container.addEventListener("dragover", onPathDragOver, { capture: true });
+    container.addEventListener("drop", onPathDrop, { capture: true });
+
     const onCopy = (e: ClipboardEvent) => {
       if (
         (!term.hasSelection() && !historySelection.active) ||
@@ -2551,6 +2580,10 @@ export function TerminalView({
       });
       container.removeEventListener("paste", onPaste);
       document.removeEventListener("paste", onPaste, { capture: true });
+      container.removeEventListener("dragover", onPathDragOver, {
+        capture: true,
+      });
+      container.removeEventListener("drop", onPathDrop, { capture: true });
       container.removeEventListener("copy", onCopy, { capture: true });
       container.removeEventListener("click", onClick);
       container.removeEventListener("mousedown", onTerminalMouseDown, {

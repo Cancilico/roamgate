@@ -179,6 +179,8 @@ after fetch, and abort conflicts. They never push.
 - Upload by dragging onto a checkout directory; download files or workspace
   `.tar.gz` directories; copy paths or delete with confirmation via right-click
   or long-press. Upload/delete stay checkout-scoped. Operations work over SSH.
+- Drag a file or folder from the tree with the mouse to insert its absolute path
+  into the active terminal pane or the terminal composer.
 
 ## Review Annotations
 
