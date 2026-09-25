@@ -6,6 +6,7 @@ import {
 import type { Terminal } from "@xterm/xterm";
 import {
   copyTextFromUserGesture,
+  copyTextFromSelectionGesture,
   createTerminalClipboardProvider,
   decodeTerminalClipboard,
   MAX_TERMINAL_CLIPBOARD_BASE64_CHARS,
@@ -270,5 +271,48 @@ describe("terminal OSC 52 clipboard access", () => {
     });
 
     expect(copied).toEqual(["secure tree"]);
+  });
+
+  test("copies a mouse selection through the native copy event without changing focus", async () => {
+    const target = new EventTarget();
+    const copied: string[] = [];
+    const copyDocument = {
+      addEventListener: target.addEventListener.bind(target),
+      removeEventListener: target.removeEventListener.bind(target),
+      execCommand: () => {
+        const event = new Event("copy", { cancelable: true });
+        Object.defineProperty(event, "clipboardData", {
+          value: {
+            setData: (_type: string, value: string) => copied.push(value),
+          },
+        });
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      },
+    } as unknown as Document;
+
+    await copyTextFromSelectionGesture("selected output", {
+      copyDocument,
+      clipboard: {
+        writeText: async () => {
+          throw new Error("unexpected fallback");
+        },
+      },
+    });
+
+    expect(copied).toEqual(["selected output"]);
+  });
+
+  test("uses the Clipboard API when native copy cannot handle selection", async () => {
+    const copied: string[] = [];
+    await copyTextFromSelectionGesture("selected output", {
+      copyDocument: null,
+      clipboard: {
+        writeText: async (text) => {
+          copied.push(text);
+        },
+      },
+    });
+    expect(copied).toEqual(["selected output"]);
   });
 });

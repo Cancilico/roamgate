@@ -187,6 +187,8 @@ after fetch, and abort conflicts. They never push.
 
 Open **Annotations** independently of Inspector. Desktop supports floating or
 pinned layouts; mobile has a dedicated touch surface.
+Selecting text in a desktop terminal copies it to the clipboard and offers
+**Add comment**. Terminal copy shortcuts also copy the current selection.
 
 1. Comment on diff line numbers, source gutters, rendered Markdown selections,
    or selected terminal text using **Add comment**.
