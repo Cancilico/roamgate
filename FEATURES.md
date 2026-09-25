@@ -57,8 +57,9 @@ the first pane a jump can reach.
 - Paste images to upload them to the connected host and insert their paths.
   OSC 52 clipboard writes follow Herdr's foreground recipient, not proven source
   pane ownership; see [clipboard limits](docs/DEPLOYMENT.md#herdr-compatibility).
-- `Cmd/Ctrl`-click HTTP(S) links to open a browser tab; file/directory paths open
-  preview/workspace actions. Touch uses long-press, then **Open link** or
+- `Cmd/Ctrl`-click HTTP(S) links to open a browser tab; file/directory paths,
+  including Windows drive and backslash paths, open preview/workspace actions.
+  Touch uses long-press, then **Open link** or
   **File actions**. Nothing opens on hover or ordinary touch.
 
 Herdr 0.9.1 supports read-only wrapped-link resolution; OSC 8 keeps explicit
