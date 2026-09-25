@@ -115,7 +115,7 @@ describe("agent session presentation", () => {
     expect(agentStateKind("WORKING")).toBe("working");
     expect(agentStateKind("stopped")).toBe("unknown");
     expect(shouldShowAgentStatusLabel("idle")).toBe(false);
-    expect(shouldShowAgentStatusLabel("unknown")).toBe(false);
+    expect(shouldShowAgentStatusLabel("unknown")).toBe(true);
     expect(shouldShowAgentStatusLabel("working")).toBe(true);
     expect(shouldShowAgentStatusLabel("blocked")).toBe(true);
     expect(shouldShowAgentStatusLabel("done")).toBe(true);
