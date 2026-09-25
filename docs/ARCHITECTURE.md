@@ -344,10 +344,23 @@ metadata unknown without failing the list. There is no remote-to-local fallback.
 
 ## Task notifications
 
-Each runtime tracks agent transitions through per-pane subscriptions and periodic
-reconciliation, even without browsers. Initial state is silent; snapshots cannot
-overwrite newer events. Transitions emit once; disposal stops observation and
-queued sends recheck the owning lease.
+With the default `herdr` source, each runtime keeps one passive endpoint shell
+(`surface_active: false`) on the render socket, gated on endpoint generation 1.
+Herdr never promotes it to foreground or tab geometry controller, but delivers
+`SemanticNotification` (frozen tag 14) to it after applying Herdr's own policy.
+Only this shell decodes tag 14; per-pane terminal shells ignore it, so open views
+do not multiply alerts. Finished/needs-attention map to completed/blocked;
+pane-less custom alerts use their sound (`request` = blocked). The runtime relays
+each one to Web Push and to browsers as `roamgate.task_notification`; the bridge
+hello advertises `herdr_task_notifications` so pages disable their own status
+tracker. The shell reconnects with capped backoff. Servers without endpoint
+support (older Herdr, or endpoints disabled) fall back to the status tracker
+below, relayed the same way; a temporarily disconnected endpoint server does not.
+
+The `status` source tracks agent transitions through per-pane subscriptions and
+periodic reconciliation, even without browsers. Initial state is silent;
+snapshots cannot overwrite newer events. Transitions emit once; disposal stops
+observation and queued sends recheck the owning lease.
 
 Web Push persists private VAPID keys and device subscriptions. Authenticated
 same-origin HTTP manages enrollment/revocation; encrypted sends use a provider

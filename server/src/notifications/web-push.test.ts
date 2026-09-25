@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import webpush from "web-push";
 import {
   createWebPushService,
+  taskPushPayload,
   validatePushDevice,
   validatePushEndpoint,
   type PushTask,
@@ -653,4 +654,45 @@ test.each([
     await runtime.stop();
     f.cleanup();
   }
+});
+
+test("push payload keeps the status wording and target", () => {
+  expect(taskPushPayload(task)).toEqual({
+    title: "Roamgate agent needs input",
+    body: "Example agent \u00b7 w1 \u00b7 p1",
+    tag: JSON.stringify(["roamgate-task", "alpha", 3, "p1"]),
+    target: {
+      connectionId: "alpha",
+      runtimeGeneration: 3,
+      workspaceId: "w1",
+      paneId: "p1",
+    },
+  });
+});
+
+test("push payload uses Herdr text and tolerates pane-less alerts", () => {
+  expect(
+    taskPushPayload({
+      ...task,
+      kind: "completed",
+      title: "claude finished",
+      body: "cvision \u00b7 tab 2",
+    }),
+  ).toMatchObject({
+    title: "claude finished",
+    body: "cvision \u00b7 tab 2",
+    target: { paneId: "p1" },
+  });
+  const paneless: PushTask = {
+    kind: "blocked",
+    connectionId: "alpha",
+    runtimeGeneration: 3,
+    agent: "Example agent",
+  };
+  expect(taskPushPayload({ ...paneless, title: "codex needs input" })).toEqual({
+    title: "codex needs input",
+    body: "Example agent",
+    tag: JSON.stringify(["roamgate-task", "alpha", 3, "codex needs input"]),
+    target: null,
+  });
 });

@@ -272,6 +272,7 @@ explicit connection registry paths remain authoritative, including empty values.
 | `--session <name>` | `HERDR_SESSION` | Default session |
 | `--public-dir <path>` | `PUBLIC_DIR` | Embedded assets |
 | `--log-level <level>` | `ROAMGATE_LOG_LEVEL` | `info` |
+| `--notification-source <herdr\|status>` | `ROAMGATE_NOTIFICATION_SOURCE` | `herdr`; see [Web Push](#web-push-notifications) |
 | `--open` | `OPEN_BROWSER=1` | Disabled |
 
 | Additional environment variable | Purpose |
@@ -353,9 +354,15 @@ Delivery needs outbound HTTPS to Apple (`*.push.apple.com`), Google
 (`*.notify.windows.com`); other providers are rejected. No public inbound endpoint
 is needed. Devices must reach their provider and Roamgate when opening an alert.
 
-The bridge and relevant Herdr runtimes must stay connected. It observes
-`working -> blocked` and `working -> done/idle` without open browsers; startup
-snapshots are silent. Delivery is best-effort: OS/Focus settings, outages, expired
+The bridge and relevant Herdr runtimes must stay connected; alerts arrive without
+open browsers. The default `herdr` notification source relays Herdr's own
+notifications (Herdr 0.9+), so Roamgate alerts match Herdr's toasts, including
+`[ui.notifications] external_agents` suppression and alerts sent with
+`herdr notification show`. Roamgate keeps one passive client-shell connection per
+runtime for this; Herdr counts it as a connected client for `notification show`,
+but it never takes focus or tab geometry. `status` (or older Herdr servers) instead
+observes `working -> blocked` and `working -> done/idle`; startup snapshots are
+silent. Delivery is best-effort: OS/Focus settings, outages, expired
 subscriptions, or stopped runtimes can prevent it. Messages expire after five
 minutes, with no durable replay; HTTP 404/410 removes expired subscriptions.
 

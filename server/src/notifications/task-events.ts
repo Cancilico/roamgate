@@ -2,12 +2,16 @@ import { herdrEventName } from "../utils/herdr-events";
 
 export interface TaskEvent {
   kind: "completed" | "blocked";
-  workspaceId: string;
-  paneId: string;
+  /** Absent for Herdr notifications that are not tied to a pane. */
+  workspaceId?: string;
+  paneId?: string;
   tabId?: string;
   workspaceLabel?: string;
   tabLabel?: string;
   agent: string;
+  /** Herdr-rendered text; status-derived events leave these unset. */
+  title?: string;
+  body?: string;
 }
 
 type Pane = {
