@@ -249,7 +249,9 @@ separate for desktop/mobile. Jump from a diff to its file preview.
   only** does not. Delivery is best-effort.
   [Web Push setup and revocation](docs/DEPLOYMENT.md#web-push-notifications).
 - Choose light/dark/system appearance, accents, built-in/custom terminal themes,
-  and UI text size (80%–150%). Preferences stay in this browser.
+  interface scale (80%–150%), and terminal font size (70%–200%), which scales
+  terminal text without resizing the rest of the interface. Preferences stay in
+  this browser.
 - **Configuration > Connection > Terminal incremental transport** saves a shared
   per-connection setting on the server. It reduces Herdr-to-Roamgate traffic,
   briefly reconnecting displays without stopping tasks; older servers retain

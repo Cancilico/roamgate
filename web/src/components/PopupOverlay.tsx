@@ -5,12 +5,7 @@ import { X } from "lucide-react";
 import { bridge } from "../api";
 import { store, useStoreSelector, type PopupInfo } from "../store";
 import { useConnectionClient } from "../useConnectionClient";
-import {
-  normalizeUiScale,
-  TERMINAL_FONT_FAMILY,
-  terminalFontOptions,
-} from "../appearance";
-import { roamgateLocalStorage } from "../browserStorage";
+import { TERMINAL_FONT_FAMILY, terminalFontOptions } from "../appearance";
 import { isMobileLayout } from "../layoutPreferences";
 import { terminalPushMatches } from "../terminalConnection";
 import { terminalCellAt, terminalWheelScroll } from "../terminalScroll";
@@ -63,7 +58,13 @@ function cssSizeFrom(
  * protocol (see terminal-bridge.ts's ThinClient branch for popup terminals),
  * which does not carry those endpoint-only capabilities in the first place.
  */
-export function PopupOverlay({ terminalTheme }: { terminalTheme: ITheme }) {
+export function PopupOverlay({
+  terminalTheme,
+  terminalFontScale,
+}: {
+  terminalTheme: ITheme;
+  terminalFontScale: number;
+}) {
   const popup = useStoreSelector((s) => s.popup);
   const connectionClient = useConnectionClient();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -110,10 +111,7 @@ export function PopupOverlay({ terminalTheme }: { terminalTheme: ITheme }) {
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: TERMINAL_FONT_FAMILY,
-      ...terminalFontOptions(
-        isMobileLayout(),
-        normalizeUiScale(roamgateLocalStorage.getItem("uiScale")),
-      ),
+      ...terminalFontOptions(isMobileLayout(), terminalFontScale),
       theme: terminalTheme,
       allowProposedApi: true,
       macOptionIsMeta: true,
@@ -289,7 +287,8 @@ export function PopupOverlay({ terminalTheme }: { terminalTheme: ITheme }) {
         previousFocusRef.current = null;
       }
     };
-    // Title/size render separately; the theme is updated without reattaching.
+    // Title/size render separately; the theme is updated without reattaching,
+    // and a font scale change applies to the next popup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popup?.terminal_id, connectionClient, attachRetry]);
 
@@ -356,7 +355,15 @@ export function PopupOverlay({ terminalTheme }: { terminalTheme: ITheme }) {
             <X size={14} />
           </button>
         </div>
-        <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            // Like normal panes, cancel interface zoom only for terminal content.
+            zoom: "calc(1 / var(--ui-scale, 1))",
+          }}
+        />
       </div>
     </div>
   );

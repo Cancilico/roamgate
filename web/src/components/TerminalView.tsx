@@ -233,9 +233,9 @@ function useDelayedFlag(pending: boolean, delayMs: number): boolean {
   return pending && elapsed;
 }
 
-function terminalDensity(uiScale: number) {
+function terminalDensity(terminalFontScale: number) {
   const compact = typeof window !== "undefined" && isMobileLayout();
-  return terminalFontOptions(compact, uiScale);
+  return terminalFontOptions(compact, terminalFontScale);
 }
 
 function isApplePlatform() {
@@ -294,7 +294,7 @@ export type TerminalWorkspaceFileRequest = {
 export function TerminalView({
   paneId,
   terminalTheme,
-  uiScale,
+  terminalFontScale,
   showMobileKeys = true,
   mobileShortcuts = defaultMobileTerminalShortcutRows(),
   mobileSideShortcuts = defaultMobileTerminalSideShortcuts(),
@@ -306,7 +306,7 @@ export function TerminalView({
 }: {
   paneId?: string;
   terminalTheme: ITheme;
-  uiScale: number;
+  terminalFontScale: number;
   showMobileKeys?: boolean;
   mobileShortcuts?: MobileTerminalShortcutRows;
   mobileSideShortcuts?: MobileTerminalSideShortcuts;
@@ -439,7 +439,7 @@ export function TerminalView({
   const [termInstance, setTermInstance] = useState<Terminal | null>(null);
   // Theme changes update xterm in place without recreating the terminal.
   const terminalThemeRef = useRef(terminalTheme);
-  const uiScaleRef = useRef(uiScale);
+  const terminalFontScaleRef = useRef(terminalFontScale);
   const fitRef = useRef<FitAddon | null>(null);
   const attachedRef = useRef<string | null>(null);
   const attachingRef = useRef<string | null>(null);
@@ -520,7 +520,7 @@ export function TerminalView({
     pane?.workspace_id,
     pane?.tab_id,
     s.layout?.tab_id,
-    uiScale,
+    terminalFontScale,
     s.status,
     s.connectionPaused,
     s.terminalAttachEpoch,
@@ -836,7 +836,7 @@ export function TerminalView({
       cursorBlink: true,
       disableStdin: composerOpenRef.current || shouldAvoidVirtualKeyboard(),
       fontFamily: TERMINAL_FONT_FAMILY,
-      ...terminalDensity(uiScaleRef.current),
+      ...terminalDensity(terminalFontScaleRef.current),
       theme: terminalThemeRef.current,
       allowProposedApi: true,
       linkHandler: {
@@ -1258,7 +1258,7 @@ export function TerminalView({
     const applyDensity = () => {
       touchSelection.reset();
       closeTerminalInput();
-      term.options = terminalDensity(uiScaleRef.current);
+      term.options = terminalDensity(terminalFontScaleRef.current);
       const size = fitVisibleTerminal();
       if (size) resizeSync.sendNow(size);
     };
@@ -2820,12 +2820,12 @@ export function TerminalView({
   ]);
 
   useEffect(() => {
-    uiScaleRef.current = uiScale;
+    terminalFontScaleRef.current = terminalFontScale;
     if (!termInstance) return;
-    termInstance.options = terminalDensity(uiScale);
+    termInstance.options = terminalDensity(terminalFontScale);
     const size = fitVisibleTerminal();
     if (size) resizeSyncRef.current?.sendNow(size);
-  }, [uiScale, termInstance, fitVisibleTerminal]);
+  }, [terminalFontScale, termInstance, fitVisibleTerminal]);
 
   useEffect(() => {
     terminalThemeRef.current = terminalTheme;
