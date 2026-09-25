@@ -105,6 +105,7 @@ export function createLegacyConnectionRuntime(args: {
   identity?: ConnectionIdentity;
   connectionGeneration?: number;
   config: SshTunnelConfig;
+  nativeCodexCopyReader?: () => Promise<string>;
   logger?: Logger;
   safeSend: SafeSend;
   broadcast?: (payload: string, context?: string) => void;
@@ -231,6 +232,7 @@ export function createLegacyConnectionRuntime(args: {
     connectionGeneration: args.connectionGeneration,
     formatError: sanitizeConnectionError,
     clientSocketPath,
+    nativeCodexCopyReader: args.nativeCodexCopyReader,
     surfaceCodecsEnabled: async () =>
       terminalSurfaceCodecsEnabled(await readGuiSettings(), identity.id),
     herdrProtocol: async () => {

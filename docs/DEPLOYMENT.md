@@ -281,6 +281,7 @@ explicit connection registry paths remain authoritative, including empty values.
 | `ROAMGATE_DISABLE_UPDATE_CHECK=1` | Disable update checks |
 | `ROAMGATE_RESTART_SUPERVISOR=0\|1` | Override external supervisor detection |
 | `ROAMGATE_DISABLE_ENDPOINT=1` | Legacy terminal fallback; see compatibility |
+| `ROAMGATE_CODEX_NATIVE_COPY=1` | Allow local Codex `/copy` to transfer the server's X11 text clipboard to the initiating browser terminal; requires `DISPLAY` and `xclip`. Disabled by default and unavailable for SSH connections. |
 
 Update mirrors need platform archives, `.sha256` files, and
 `roamgate-<platform>.update.json` with `name: "roamgate"`. Missing/legacy manifests

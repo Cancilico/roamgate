@@ -1085,6 +1085,151 @@ describe("terminal bridge sharing", () => {
     bridge.cleanupWs(stranger);
   });
 
+  test("native Codex copy requires opt-in and the attached browser's recent input", async () => {
+    const socketPath = await startThinServer();
+    const owner = {} as ServerWebSocket<unknown>;
+    const stranger = {} as ServerWebSocket<unknown>;
+    const messages = new Map<ServerWebSocket<unknown>, string[]>([
+      [owner, []],
+      [stranger, []],
+    ]);
+    let reads = 0;
+    const options = {
+      clientSocketPath: socketPath,
+      herdrProtocol: async () => 17,
+      safeSend: (ws: ServerWebSocket<unknown>, payload: string) => {
+        messages.get(ws)?.push(payload);
+        return true;
+      },
+      clientLabel: () => "browser",
+      markRpcError: () => undefined,
+    };
+    const disabled = createTerminalBridge(options);
+    expect(
+      await disabled.handleTerminalRpc(
+        owner,
+        "disabled",
+        "terminal.codex_copy",
+        {
+          terminal_id: "term_1",
+        },
+      ),
+    ).toBeTruthy();
+    expect(JSON.parse(messages.get(owner)!.at(-1)!).result).toEqual({
+      available: false,
+    });
+    disabled.dispose();
+
+    const bridge = createTerminalBridge({
+      ...options,
+      nativeCodexCopyReader: async () => {
+        reads++;
+        return "copied response";
+      },
+    });
+    try {
+      await bridge.handleTerminalRpc(owner, "attach", "terminal.attach", {
+        terminal_id: "term_1",
+        cols: 100,
+        rows: 30,
+      });
+      await bridge.handleTerminalRpc(
+        stranger,
+        "stranger",
+        "terminal.codex_copy",
+        { terminal_id: "term_1" },
+      );
+      expect(JSON.parse(messages.get(stranger)!.at(-1)!).error.message).toBe(
+        "no terminal attached",
+      );
+      await bridge.handleTerminalRpc(owner, "early", "terminal.codex_copy", {
+        terminal_id: "term_1",
+      });
+      expect(JSON.parse(messages.get(owner)!.at(-1)!).error.message).toBe(
+        "recent terminal input required",
+      );
+      await bridge.handleTerminalRpc(owner, "input", "terminal.input", {
+        terminal_id: "term_1",
+        data: Buffer.from("\r").toString("base64"),
+      });
+      await bridge.handleTerminalRpc(owner, "copy", "terminal.codex_copy", {
+        terminal_id: "term_1",
+      });
+      expect(JSON.parse(messages.get(owner)!.at(-1)!).result).toEqual({
+        text: "copied response",
+      });
+      expect(reads).toBe(1);
+      for (let attempt = 0; attempt < 9; attempt++) {
+        await bridge.handleTerminalRpc(
+          owner,
+          `repeat-${attempt}`,
+          "terminal.codex_copy",
+          { terminal_id: "term_1" },
+        );
+      }
+      await bridge.handleTerminalRpc(owner, "limited", "terminal.codex_copy", {
+        terminal_id: "term_1",
+      });
+      expect(JSON.parse(messages.get(owner)!.at(-1)!).error.message).toBe(
+        "Codex copy rate limit exceeded",
+      );
+      expect(reads).toBe(10);
+    } finally {
+      bridge.dispose();
+    }
+  });
+
+  test("native Codex copy discards a clipboard read after its terminal detaches", async () => {
+    const socketPath = await startThinServer();
+    const owner = {} as ServerWebSocket<unknown>;
+    const messages: string[] = [];
+    let finishRead!: (text: string) => void;
+    const bridge = createTerminalBridge({
+      clientSocketPath: socketPath,
+      herdrProtocol: async () => 17,
+      nativeCodexCopyReader: () =>
+        new Promise<string>((resolve) => {
+          finishRead = resolve;
+        }),
+      safeSend: (_ws, payload) => {
+        messages.push(payload);
+        return true;
+      },
+      clientLabel: () => "browser",
+      markRpcError: () => undefined,
+    });
+    try {
+      await bridge.handleTerminalRpc(owner, "attach", "terminal.attach", {
+        terminal_id: "term_1",
+        cols: 100,
+        rows: 30,
+      });
+      await bridge.handleTerminalRpc(owner, "input", "terminal.input", {
+        terminal_id: "term_1",
+        data: Buffer.from("\r").toString("base64"),
+      });
+      const copy = bridge.handleTerminalRpc(
+        owner,
+        "copy",
+        "terminal.codex_copy",
+        { terminal_id: "term_1" },
+      );
+      await bridge.handleTerminalRpc(owner, "detach", "terminal.detach", {
+        terminal_id: "term_1",
+      });
+      finishRead("private clipboard text");
+      await copy;
+      expect(
+        messages.some((line) => line.includes("private clipboard text")),
+      ).toBe(false);
+      expect(JSON.parse(messages.at(-1)!).error.message).toBe(
+        "terminal changed during copy",
+      );
+    } finally {
+      bridge.dispose();
+    }
+  });
+
   test("dispose closes runtime-owned terminal resources", async () => {
     const tracker = {
       appConnects: 0,

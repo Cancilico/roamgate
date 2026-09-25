@@ -56,6 +56,8 @@ the first pane a jump can reach.
 - Paste images to upload them to the connected host and insert their paths.
   OSC 52 clipboard writes follow Herdr's foreground recipient, not proven source
   pane ownership; see [clipboard limits](docs/DEPLOYMENT.md#herdr-compatibility).
+  On local X11 hosts, operators can enable Codex `/copy` transfer to the browser
+  with `ROAMGATE_CODEX_NATIVE_COPY=1`.
 - `Cmd/Ctrl`-click HTTP(S) links to open a browser tab; file/directory paths open
   preview/workspace actions. The link click opens on press and is never
   forwarded to mouse-aware apps. On touch, tap a link: URLs open a browser tab
