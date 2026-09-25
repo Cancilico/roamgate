@@ -737,7 +737,6 @@ export function TerminalView({
     (direction: "up" | "down", amount: "full" | "half" = "full") => {
       const term = termRef.current;
       if (!term) return;
-      if (shouldAvoidVirtualKeyboard()) blurTerminalInput();
       const targetTerminalId =
         desiredTerminalRef.current ?? paneTerminalIdRef.current;
       if (
