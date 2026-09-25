@@ -3,27 +3,17 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 export const MAX_NATIVE_CODEX_COPY_BYTES = 100_000;
-const X11_CLIPBOARD_READER = [
-  "import sys, tkinter as tk",
-  "root = tk.Tk()",
-  "root.withdraw()",
-  "try:",
-  "    value = root.clipboard_get()",
-  "finally:",
-  "    root.destroy()",
-  'sys.stdout.buffer.write(value.encode("utf-8"))',
-].join("\n");
 
 /** Read only after an attached local terminal confirms an explicit Codex copy. */
 export async function readNativeCodexClipboard(): Promise<string> {
   if (!process.env.DISPLAY) throw new Error("X11 display is unavailable");
   const { stdout } = await execFileAsync(
-    "python3",
-    ["-c", X11_CLIPBOARD_READER],
+    "xclip",
+    ["-selection", "clipboard", "-out", "-t", "UTF8_STRING"],
     {
       env: process.env,
       encoding: "buffer",
-      timeout: 2_000,
+      timeout: 5_000,
       maxBuffer: MAX_NATIVE_CODEX_COPY_BYTES + 1,
     },
   );

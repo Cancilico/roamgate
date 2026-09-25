@@ -1347,18 +1347,23 @@ export function createTerminalBridge(args: {
         }
         const now = Date.now();
         const inputAt = clipboardTarget?.inputAt;
-        const ownsRecentInput = () =>
+        const ownsInput = () =>
           clipboardTarget?.ws === ws &&
           clipboardTarget.terminalId === requestedTerminalId &&
           clipboardTarget.session === shared &&
           clipboardTarget.inputAt === inputAt &&
-          Date.now() - clipboardTarget.inputAt <= NATIVE_COPY_INPUT_WINDOW_MS &&
           terminalViewers.get(ws)?.has(requestedTerminalId) === true &&
           sharedTerminals.get(requestedTerminalId) === shared &&
           !thin.isClosed &&
           requestIsCurrent() &&
           isCurrent(operationRevision);
-        if (!ownsRecentInput()) return fail("recent terminal input required");
+        if (
+          !ownsInput() ||
+          inputAt === undefined ||
+          now - inputAt > NATIVE_COPY_INPUT_WINDOW_MS
+        ) {
+          return fail("recent terminal input required");
+        }
         const rate = nativeCopyRate.get(ws);
         const currentRate =
           rate && now - rate.windowStart < NATIVE_COPY_RATE_WINDOW_MS
@@ -1370,7 +1375,7 @@ export function createTerminalBridge(args: {
         currentRate.count++;
         nativeCopyRate.set(ws, currentRate);
         const text = await args.nativeCodexCopyReader();
-        if (!ownsRecentInput()) return fail("terminal changed during copy");
+        if (!ownsInput()) return fail("terminal changed during copy");
         if (
           !text ||
           Buffer.byteLength(text, "utf8") > MAX_NATIVE_CODEX_COPY_BYTES
