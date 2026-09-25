@@ -5,6 +5,8 @@ import { createWebPushService } from "./notifications/web-push";
 import { rmSync } from "node:fs";
 import packageJson from "../../package.json";
 import type { SshTunnelConfig } from "./bridge/ssh-tunnel";
+import { readNativeCodexClipboard } from "./bridge/native-codex-clipboard";
+import { roamgateEnv } from "./config/environment";
 import {
   flushCoalescedMessages,
   sendWebSocketMessage,
@@ -428,6 +430,12 @@ function runtimeFactoryForProfile(
         identity,
         connectionGeneration: context.generation,
         config: profileConfig,
+        nativeCodexCopyReader:
+          roamgateEnv("CODEX_NATIVE_COPY") === "1" &&
+          profile.type === "local" &&
+          !profileConfig.sshHost
+            ? readNativeCodexClipboard
+            : undefined,
         logger: logger.child("connection"),
         safeSend,
         broadcast: (payload, context) => {

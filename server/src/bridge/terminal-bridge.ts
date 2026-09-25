@@ -18,6 +18,7 @@ import { EndpointClient } from "./endpoint-client";
 import type { Popup, SurfaceBaseline } from "./endpoint-surface";
 import { frameToAnsi } from "./frame-to-ansi";
 import { isTerminalClipboardPayload } from "./terminal-clipboard";
+import { MAX_NATIVE_CODEX_COPY_BYTES } from "./native-codex-clipboard";
 
 type TerminalSession = {
   terminalId: string | null;
@@ -50,6 +51,9 @@ type ClipboardTarget = {
 };
 
 const CLIPBOARD_INPUT_WINDOW_MS = 30_000;
+const NATIVE_COPY_INPUT_WINDOW_MS = 5_000;
+const NATIVE_COPY_RATE_WINDOW_MS = 60_000;
+const NATIVE_COPY_RATE_LIMIT = 10;
 const CLIPBOARD_RELAY_READY_WAIT_MS = 500;
 const TERMINAL_FIRST_FRAME_WAIT_MS = 20_000;
 const STANDARD_BASE64_RE =
@@ -64,6 +68,7 @@ export function createTerminalBridge(args: {
   formatError?: (error: unknown) => string;
   clientSocketPath: string;
   herdrProtocol: () => Promise<number>;
+  nativeCodexCopyReader?: () => Promise<string>;
   /** Resolve a terminal id to its owning pane id (control-socket pane.list). */
   lookupPaneId?: (terminalId: string) => Promise<string | null>;
   /** Popup surfaces follow this connection's focused Space, not the shell default. */
@@ -106,6 +111,10 @@ export function createTerminalBridge(args: {
     Map<string, { cols: number; rows: number }>
   >();
   const sharedTerminals = new Map<string, SharedTerminalSession>();
+  const nativeCopyRate = new WeakMap<
+    ServerWebSocket<unknown>,
+    { windowStart: number; count: number }
+  >();
   /** The dedicated endpoint observer owns this connection-wide popup state. */
   let popupState: PopupIdentity | null = null;
   let popupObserver: EndpointClient | null = null;
@@ -1330,6 +1339,45 @@ export function createTerminalBridge(args: {
         };
         thin.input(input);
         return reply({ ok: true });
+      }
+      if (method === "terminal.codex_copy") {
+        if (!args.nativeCodexCopyReader) return reply({ available: false });
+        if (!thin || thin.isClosed || !shared || !requestedTerminalId) {
+          return fail(NO_TERMINAL_ATTACHED_MESSAGE);
+        }
+        const now = Date.now();
+        const inputAt = clipboardTarget?.inputAt;
+        const ownsRecentInput = () =>
+          clipboardTarget?.ws === ws &&
+          clipboardTarget.terminalId === requestedTerminalId &&
+          clipboardTarget.session === shared &&
+          clipboardTarget.inputAt === inputAt &&
+          Date.now() - clipboardTarget.inputAt <= NATIVE_COPY_INPUT_WINDOW_MS &&
+          terminalViewers.get(ws)?.has(requestedTerminalId) === true &&
+          sharedTerminals.get(requestedTerminalId) === shared &&
+          !thin.isClosed &&
+          requestIsCurrent() &&
+          isCurrent(operationRevision);
+        if (!ownsRecentInput()) return fail("recent terminal input required");
+        const rate = nativeCopyRate.get(ws);
+        const currentRate =
+          rate && now - rate.windowStart < NATIVE_COPY_RATE_WINDOW_MS
+            ? rate
+            : { windowStart: now, count: 0 };
+        if (currentRate.count >= NATIVE_COPY_RATE_LIMIT) {
+          return fail("Codex copy rate limit exceeded");
+        }
+        currentRate.count++;
+        nativeCopyRate.set(ws, currentRate);
+        const text = await args.nativeCodexCopyReader();
+        if (!ownsRecentInput()) return fail("terminal changed during copy");
+        if (
+          !text ||
+          Buffer.byteLength(text, "utf8") > MAX_NATIVE_CODEX_COPY_BYTES
+        ) {
+          return fail("native clipboard text is empty or too large");
+        }
+        return reply({ text });
       }
       if (method === "terminal.resize") {
         if (!thin || !shared) return fail(NO_TERMINAL_ATTACHED_MESSAGE);

@@ -50,6 +50,7 @@ import {
 import "@xterm/xterm/css/xterm.css";
 import { bridge, type ConnectionClient } from "../api";
 import { mobileTerminalShortcutExecution } from "../mobileTerminalShortcutAction";
+import { codexCopyConfirmed, codexCopyPickerVisible } from "../codexCopy";
 import {
   defaultMobileTerminalShortcutRows,
   defaultMobileTerminalSideShortcuts,
@@ -1035,6 +1036,66 @@ export function TerminalView({
       isActivePaneRef.current &&
       (!shouldAvoidVirtualKeyboard() || inputActiveRef.current);
 
+    let codexCopyTimer: number | null = null;
+    let codexCopyIntent = 0;
+    let codexCopyPending = false;
+    const cancelCodexCopyWatch = () => {
+      codexCopyIntent++;
+      if (codexCopyTimer !== null) window.clearTimeout(codexCopyTimer);
+      codexCopyTimer = null;
+      codexCopyPending = false;
+    };
+    const watchCodexCopy = (terminalId: string) => {
+      cancelCodexCopyWatch();
+      const intent = codexCopyIntent;
+      const deadline = performance.now() + 3_000;
+      const poll = () => {
+        codexCopyTimer = null;
+        if (
+          intent !== codexCopyIntent ||
+          terminalEffectDisposed ||
+          !connectionClient.isCurrent() ||
+          desiredTerminalRef.current !== terminalId
+        )
+          return;
+        if (!codexCopyPickerVisible(term) && codexCopyConfirmed(term)) {
+          codexCopyPending = true;
+          void connectionClient
+            .call("terminal.codex_copy", { terminal_id: terminalId }, 5_000)
+            .then((result) => {
+              if (
+                intent !== codexCopyIntent ||
+                terminalEffectDisposed ||
+                !connectionClient.isCurrent() ||
+                desiredTerminalRef.current !== terminalId ||
+                !isActivePaneRef.current ||
+                result?.available === false
+              )
+                return;
+              if (typeof result?.text !== "string" || !result.text) {
+                throw new Error("Codex clipboard response is invalid");
+              }
+              clipboardProvider.writeText(SYSTEM_CLIPBOARD, result.text);
+            })
+            .catch((error) => {
+              if (intent === codexCopyIntent && connectionClient.isCurrent()) {
+                setUploadError(
+                  `Codex copy failed: ${(error as Error).message}`,
+                );
+              }
+            })
+            .finally(() => {
+              if (intent === codexCopyIntent) codexCopyPending = false;
+            });
+          return;
+        }
+        if (performance.now() < deadline) {
+          codexCopyTimer = window.setTimeout(poll, 75);
+        }
+      };
+      codexCopyTimer = window.setTimeout(poll, 75);
+    };
+
     term.onData((data) => {
       invalidateLinks();
       if (replayingWheel && acceptsEndpointInput()) {
@@ -1062,6 +1123,14 @@ export function TerminalView({
       if (!shouldSend) return;
       const terminalId = desiredTerminalRef.current;
       if (!terminalId) return;
+      if (
+        (unsuppressedData === "\r" || unsuppressedData === "\n") &&
+        codexCopyPickerVisible(term)
+      ) {
+        watchCodexCopy(terminalId);
+      } else if (codexCopyTimer !== null || codexCopyPending) {
+        cancelCodexCopyWatch();
+      }
       imeKeyEvent.recordXtermData(unsuppressedData);
       const bytes = new TextEncoder().encode(unsuppressedData);
       sendBytes(connectionClient, bytes, terminalId).catch(() => {});
@@ -2589,6 +2658,7 @@ export function TerminalView({
     });
 
     return () => {
+      cancelCodexCopyWatch();
       touchSelection.cancelPending();
       document.removeEventListener("keydown", onTouchSelectionEscape, true);
       touchSelectionRef.current = null;
