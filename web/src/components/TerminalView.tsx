@@ -68,6 +68,7 @@ import {
 } from "../store";
 import {
   copyTextFromUserGesture,
+  copyTextFromSelectionGesture,
   createTerminalClipboardProvider,
   decodeTerminalClipboard,
 } from "../terminalClipboard";
@@ -2186,11 +2187,15 @@ export function TerminalView({
           !terminalEffectDisposed &&
           connectionClient.isCurrent()
         ) {
-          offerReviewSelection(
-            historySelection.text ?? term.getSelection(),
-            e.clientX,
-            e.clientY,
-          );
+          const selection = historySelection.text ?? term.getSelection();
+          if (selection) {
+            void copyTextFromSelectionGesture(
+              trimCopiedLinePadding(selection),
+            ).catch((error) => {
+              setUploadError(`Copy failed: ${(error as Error).message}`);
+            });
+          }
+          offerReviewSelection(selection, e.clientX, e.clientY);
         }
         if (!terminalEffectDisposed) endpointPresentation.flush();
       });

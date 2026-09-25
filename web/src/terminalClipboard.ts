@@ -137,6 +137,50 @@ export async function copyTextFromUserGesture(
   await clipboard.writeText(text);
 }
 
+/** Copy a completed mouse selection without moving focus from the terminal. */
+export async function copyTextFromSelectionGesture(
+  text: string,
+  options: {
+    copyDocument?: Document | null;
+    clipboard?: ClipboardWriter | null;
+  } = {},
+): Promise<void> {
+  const copyDocument =
+    options.copyDocument === undefined
+      ? typeof document !== "undefined"
+        ? document
+        : null
+      : options.copyDocument;
+  if (copyDocument?.execCommand) {
+    let copied = false;
+    const onCopy = (event: ClipboardEvent) => {
+      if (!event.clipboardData) return;
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", text);
+      copied = true;
+    };
+    copyDocument.addEventListener("copy", onCopy, { capture: true });
+    try {
+      if (copyDocument.execCommand("copy") && copied) return;
+    } catch {
+      // The Clipboard API may still be available on secure origins.
+    } finally {
+      copyDocument.removeEventListener("copy", onCopy, { capture: true });
+    }
+  }
+
+  const clipboard =
+    options.clipboard === undefined
+      ? typeof navigator !== "undefined"
+        ? navigator.clipboard
+        : null
+      : options.clipboard;
+  if (!clipboard?.writeText) {
+    throw new Error("browser clipboard access is unavailable");
+  }
+  await clipboard.writeText(text);
+}
+
 /** Allow OSC 52 writes while deliberately refusing terminal clipboard reads. */
 export function createTerminalClipboardProvider(
   options: TerminalClipboardProviderOptions = {},
