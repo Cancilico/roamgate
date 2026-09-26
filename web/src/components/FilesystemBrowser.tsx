@@ -26,9 +26,10 @@ export function FilesystemBrowser({
   onSelect,
   onMenu,
   onExit,
+  onDirectoryChange,
 }: {
   client: ConnectionClient;
-  workspaceId: string;
+  workspaceId?: string;
   initialPath: string;
   showHidden: boolean;
   onShowHiddenChange: (value: boolean) => void;
@@ -36,6 +37,7 @@ export function FilesystemBrowser({
   onSelect: (entry: FileExplorerEntry) => void;
   onMenu: (entry: FileExplorerEntry, x: number, y: number) => void;
   onExit: () => void;
+  onDirectoryChange?: (path: string) => void;
 }) {
   const [directory, setDirectory] = useState(initialPath);
   const [pathInput, setPathInput] = useState(initialPath);
@@ -89,6 +91,7 @@ export function FilesystemBrowser({
     setSearch("");
     setPathInput(path);
     setDirectory(path);
+    onDirectoryChange?.(path);
     setRefresh((value) => value + 1);
   };
   const openEntry = (entry: FileExplorerEntry) => {
@@ -112,10 +115,10 @@ export function FilesystemBrowser({
     >
       <div className="filesystem-mode">
         <span>
-          Filesystem <small>(read only)</small>
+          Filesystem {workspaceId ? <small>(read only)</small> : null}
         </span>
         <button type="button" className="ghost" onClick={onExit}>
-          <ArrowLeft size={14} /> Workspace only
+          <ArrowLeft size={14} /> {workspaceId ? "Workspace only" : "Close"}
         </button>
       </div>
       <form

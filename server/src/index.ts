@@ -166,6 +166,8 @@ const IMPORTANT_RPC_METHODS = new Set([
   "agent_history.entry",
   "agent_session.get",
   "file.read",
+  "file.editor_read",
+  "file.write",
   "git.diff_file",
   "git.file_action",
   "git.pull",
@@ -892,6 +894,23 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     }
     return;
   }
+  if (
+    method === "file.editor_path" ||
+    method === "file.editor_read" ||
+    method === "file.write"
+  ) {
+    const result = await connection.files.editorOperation(
+      method === "file.write"
+        ? "write"
+        : method === "file.editor_read"
+          ? "read"
+          : "path",
+      params ?? {},
+    );
+    if (!result.ok) markRpcError(ws, id, result.error.message);
+    sendReply({ id, result }, method);
+    return;
+  }
   if (method === "file.list") {
     try {
       const result = await listWorkspaceFiles(params ?? {});
@@ -1402,6 +1421,8 @@ function main() {
                 bridge_protocol_version: 2,
                 default_connection_id: connectionManager.defaultId(),
                 capabilities: {
+                  file_editing: true,
+                  host_files: true,
                   connection_id: true,
                   connection_scoped_http: true,
                   connection_runtime_generation: true,

@@ -1,3 +1,4 @@
+import { guardFileEditorNavigation } from "./fileEditorNavigation";
 import { roamgateLocalStorage, roamgateSessionStorage } from "./browserStorage";
 import { syncTaskPush, type TaskNotificationPreferences } from "./taskPush";
 import {
@@ -2381,6 +2382,11 @@ export const store = {
 
   /** Programmatic switch seam for the M5 selector. */
   selectConnection(connectionId: string) {
+    if (
+      connectionId !== state.activeConnectionId &&
+      !guardFileEditorNavigation(() => selectConnectionNow(connectionId))
+    )
+      return false;
     return selectConnectionNow(connectionId);
   },
 

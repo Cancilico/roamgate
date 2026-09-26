@@ -155,6 +155,8 @@ export interface BridgeHello {
   bridge_protocol_version: number;
   default_connection_id: string;
   capabilities: {
+    file_editing?: boolean;
+    host_files?: boolean;
     connection_id?: boolean;
     connection_scoped_http?: boolean;
     connection_runtime_generation?: boolean;
@@ -341,6 +343,8 @@ function isBridgeHello(value: unknown): value is BridgeHello {
   }
   const capabilities = message.capabilities as Record<string, unknown>;
   for (const capability of [
+    "file_editing",
+    "host_files",
     "connection_id",
     "connection_scoped_http",
     "connection_runtime_generation",

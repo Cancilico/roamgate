@@ -86,7 +86,8 @@ keyboard shortcuts, or workspace/agent menus.
 - Closed worktrees must open before browsing; missing ones offer cleanup, never
   sibling files. Directory previews can prefill **New workspace**.
 
-Inspector and Annotations leave the sidebar unchanged. Preview is read-only;
+Inspector and Annotations leave the sidebar unchanged. Preview offers **Edit** in
+the host file panel;
 [resource ownership](docs/ARCHITECTURE.md#workspace-resource-ownership) prevents
 cross-worktree state mixing.
 
@@ -169,6 +170,21 @@ after fetch, and abort conflicts. They never push.
   Parent/absolute-path navigation allows preview, copy path, and download.
   **Workspace only** restores the tree; refresh or checkout/connection changes
   reset this mode.
+- **Open path...** and **New file** are available in the file explorer and command
+  menu, including without a selected workspace. Paths refer to the connected
+  host: absolute paths, `~/...`, or paths relative to the displayed directory.
+- **Edit** opens a single source buffer with highlighting, undo/redo and
+  search/replace. **Save** (`Ctrl/Cmd+S`), **Save As...**, and **Discard changes**
+  preserve the original host/path across workspace switches. Unsaved edits stay
+  in memory; closing/replacing the buffer or changing connections prompts to
+  save, discard or cancel. Reloading/closing the browser warns but cannot recover
+  edits after a crash.
+- Editing supports complete UTF-8 regular files up to 2 MiB, preserving BOM,
+  LF/CRLF and final-newline presence. Mixed endings, binaries and hard-linked
+  destinations cannot be saved. Existing-file saves check for concurrent edits;
+  **Compare with disk**, reload or Save As resolves conflicts without silent
+  overwrite. New-file saves never replace an existing path. Parent directories
+  must already exist. SSH editing/path resolution requires a Unix host with Python 3.
 - Text previews provide highlighting, line numbers, search, and refresh.
   Markdown has a Preview/Source switch with the active mode highlighted;
   Mermaid fences and `.mmd`/`.mermaid` files
