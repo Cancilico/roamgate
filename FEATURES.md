@@ -180,6 +180,13 @@ after fetch, and abort conflicts. They never push.
 - Upload by dragging onto a checkout directory; download files or workspace
   `.tar.gz` directories; copy paths or delete with confirmation via right-click
   or long-press. Upload/delete stay checkout-scoped. Operations work over SSH.
+- With [host file reveal enabled](docs/DEPLOYMENT.md#host-file-reveal), local
+  profiles over loopback offer **Reveal on host** and **Open folder on host**
+  in explorer and Changes menus. These open the Roamgate host's desktop, not
+  necessarily the browser's: files are selected in Finder/File Explorer;
+  Linux opens their containing folder. Changes uses the nearest existing
+  ancestor for deleted paths, including removed directories. Disabled by
+  default; SSH profiles and non-loopback peers are refused.
 - Drag a file or folder from the tree with the mouse to insert its absolute path
   into the active terminal pane or the terminal composer.
 

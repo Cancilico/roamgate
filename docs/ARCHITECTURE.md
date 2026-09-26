@@ -296,6 +296,22 @@ view. Search filters loaded entries only.
 
 Absolute previews use `scope=filesystem` download URLs; relative Markdown links
 and images resolve beside their source. Upload/delete remain checkout-scoped.
+`file.reveal` opens the host file manager with a fixed per-platform argv
+(`explorer.exe`, `open`, `xdg-open`), never a shell. It is disabled unless the
+host opts in with `ROAMGATE_ALLOW_FILE_REVEAL=1`, and still refuses SSH profiles
+and non-loopback peers. The hello `file_reveal` capability reports host opt-in
+and peer eligibility; the UI also checks the selected profile. Loopback peers
+can be forwarded/tunneled remote browsers: neither TCP loopback nor the browser
+URL proves same-machine access. See [deployment](DEPLOYMENT.md#host-file-reveal).
+
+Reveal validates scope explicitly: workspace paths must be relative (including
+on Windows), with realpath/symlink confinement; only `scope: "filesystem"`
+permits absolute paths outside the checkout. Changes sends `source: "changes"`
+with a Git-root-relative path. The server resolves the workspace's Git root and
+uses actual existence, not Git status codes, falling back to the nearest existing
+ancestor inside that root. Ordinary explorer requests still fail on missing
+paths. Download behavior is unchanged. Windows foreground focus through `user32`
+(`bun:ffi`) is best effort, not guaranteed; the host needs a usable desktop.
 Explorer caches are separate from lazy UI code. Mermaid previews share a lazy
 renderer, strip wrappers/metadata only for detection, and retain original source.
 Images are inert elements; SVG is never inserted into the app DOM, and direct

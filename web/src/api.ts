@@ -158,6 +158,7 @@ export interface BridgeHello {
     connection_id?: boolean;
     connection_scoped_http?: boolean;
     connection_runtime_generation?: boolean;
+    file_reveal?: boolean;
     /** Task notifications follow Herdr's semantic notifications, not pane status. */
     herdr_task_notifications?: boolean;
     [key: string]: unknown;
@@ -345,6 +346,7 @@ function isBridgeHello(value: unknown): value is BridgeHello {
     "connection_scoped_http",
     "connection_runtime_generation",
     "herdr_task_notifications",
+    "file_reveal",
   ]) {
     const value = capabilities[capability];
     if (value !== undefined && typeof value !== "boolean") return false;

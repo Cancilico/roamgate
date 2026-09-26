@@ -281,6 +281,7 @@ explicit connection registry paths remain authoritative, including empty values.
 | `ROAMGATE_DISABLE_UPDATE_CHECK=1` | Disable update checks |
 | `ROAMGATE_RESTART_SUPERVISOR=0\|1` | Override external supervisor detection |
 | `ROAMGATE_DISABLE_ENDPOINT=1` | Legacy terminal fallback; see compatibility |
+| `ROAMGATE_ALLOW_FILE_REVEAL=1` | Opt into [host file reveal](#host-file-reveal); disabled by default |
 
 Update mirrors need platform archives, `.sha256` files, and
 `roamgate-<platform>.update.json` with `name: "roamgate"`. Missing/legacy manifests
@@ -294,6 +295,21 @@ roamgate --host 0.0.0.0 --port 8787     # generated token
 
 For a fixed password, prefer `ROAMGATE_PASSWORD` over process-visible
 `--password`. Read [Security](../SECURITY.md) before non-loopback use.
+
+### Host file reveal
+
+Desktop file reveal is **off by default**. To enable it, set
+`ROAMGATE_ALLOW_FILE_REVEAL=1` in the host process environment (or the service
+environment file and restart the service). Only local Herdr profiles and
+loopback TCP peers are eligible; SSH profiles and non-loopback peers are refused.
+The menus open the **Roamgate host's** file manager, which requires a usable
+desktop session. Foreground focus, especially on Windows, is best effort.
+
+**Opt-in also allows loopback-forwarded/tunnel clients to open windows on the
+host.** A loopback peer or browser URL cannot prove the browser runs on that
+machine. Enable only when that is acceptable for every client reaching the
+loopback listener, including reverse proxies and SSH forwards. The browser's
+platform is not used to name the host desktop.
 
 ### Native HTTPS
 

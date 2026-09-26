@@ -40,6 +40,11 @@ import { store, useStoreSelector } from "../store";
 import { copyTextFromUserGesture } from "../terminalClipboard";
 import { useConnectionClient } from "../useConnectionClient";
 import { setWorkspacePathDragData } from "../workspacePathDrag";
+import {
+  revealInFileManager,
+  revealMenuLabel,
+  useCanRevealInFileManager,
+} from "../fileManager";
 import type {
   FileExplorerEntry,
   FileExplorerList,
@@ -183,7 +188,7 @@ type FileExplorerEntryMenuState = {
 
 // Keep ENTRY_MENU_ITEM_COUNT in sync with the items rendered in
 // FileExplorerEntryMenu; the height estimate drives clamping and flip placement.
-const ENTRY_MENU_ITEM_COUNT = 3;
+const ENTRY_MENU_ITEM_COUNT = 4;
 const ENTRY_MENU_WIDTH = 220;
 const ENTRY_MENU_HEIGHT = ENTRY_MENU_ITEM_COUNT * 34 + 8;
 
@@ -192,12 +197,14 @@ function FileExplorerEntryMenu({
   onClose,
   onDownload,
   onCopy,
+  onReveal,
   onDelete,
 }: {
   state: FileExplorerEntryMenuState | null;
   onClose: () => void;
   onDownload: (entry: FileExplorerEntry) => void;
   onCopy: (entry: FileExplorerEntry) => void;
+  onReveal?: (entry: FileExplorerEntry) => void;
   onDelete?: (entry: FileExplorerEntry) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -267,6 +274,14 @@ function FileExplorerEntryMenu({
       label: "Copy absolute path",
       action: () => onCopy(entry),
     },
+    ...(onReveal
+      ? [
+          {
+            label: revealMenuLabel(isDirectory),
+            action: () => onReveal(entry),
+          },
+        ]
+      : []),
     ...(onDelete
       ? [
           {
@@ -344,6 +359,7 @@ function FileExplorerContent({
 }) {
   const workspaces = useStoreSelector((state) => state.workspaces);
   const connectionClient = useConnectionClient();
+  const canReveal = useCanRevealInFileManager();
   const focusedWorkspace = workspaces.find((w) => w.focused);
   const workspace = workspaceId
     ? workspaces.find((w) => w.workspace_id === workspaceId)
@@ -1793,6 +1809,16 @@ function FileExplorerContent({
         onCopy={(entry) => {
           void copyEntryPath(entry);
         }}
+        onReveal={
+          canReveal && workspace?.workspace_id
+            ? (entry) =>
+                void revealInFileManager(
+                  connectionClient,
+                  workspace.workspace_id,
+                  entry.path,
+                )
+            : undefined
+        }
         onDelete={filesystem ? undefined : setPendingDeleteEntry}
       />
       <ConfirmDialog

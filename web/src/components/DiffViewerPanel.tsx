@@ -45,6 +45,11 @@ import { store } from "../store";
 import { copyTextFromUserGesture } from "../terminalClipboard";
 import { bumpFileExplorerRefresh } from "../fileExplorerRefresh";
 import {
+  revealInFileManager,
+  revealMenuLabel,
+  useCanRevealInFileManager,
+} from "../fileManager";
+import {
   buildGitFileMenuItems,
   buildGitRepoMenuItems,
   countWorkingEntries,
@@ -845,6 +850,7 @@ export const DiffViewerPanel = forwardRef<
 ) {
   const workspaces = useStoreSelector((state) => state.workspaces);
   const connectionClient = useConnectionClient();
+  const canReveal = useCanRevealInFileManager();
   const focusedWorkspace = workspaces.find((w) => w.focused);
   const workspace = workspaceId
     ? workspaces.find((w) => w.workspace_id === workspaceId)
@@ -1852,6 +1858,21 @@ export const DiffViewerPanel = forwardRef<
                           copyPath(
                             `${cache.summary?.root}/${contextMenu.path}`,
                             "Absolute path",
+                          ),
+                      },
+                    ]
+                  : []),
+                ...(canReveal && cache.summary?.root && workspace?.workspace_id
+                  ? [
+                      {
+                        key: "reveal",
+                        label: revealMenuLabel(!!contextMenu.directory),
+                        action: () =>
+                          void revealInFileManager(
+                            connectionClient,
+                            workspace.workspace_id,
+                            contextMenu.path,
+                            "changes",
                           ),
                       },
                     ]
