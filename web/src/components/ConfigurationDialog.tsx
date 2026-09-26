@@ -14,18 +14,12 @@ import {
   SquareTerminal,
   Sun,
   SunMoon,
-  Type,
 } from "lucide-react";
 import type { Theme } from "../App";
 import {
   ACCENT_OPTIONS,
   type AccentColor,
-  clampTerminalFontScale,
   clampUiScale,
-  TERMINAL_FONT_SCALE_DEFAULT,
-  TERMINAL_FONT_SCALE_MAX,
-  TERMINAL_FONT_SCALE_MIN,
-  TERMINAL_FONT_SCALE_STEP,
   UI_SCALE_DEFAULT,
   UI_SCALE_MAX,
   UI_SCALE_MIN,
@@ -38,10 +32,9 @@ import {
   type MobileTerminalSideShortcuts,
 } from "../mobileTerminalShortcuts";
 import { shallowEqual, store, useStoreSelector } from "../store";
-import {
-  type CustomTerminalTheme,
-  resolveTerminalThemeDefinition,
-  type TerminalThemeSelection,
+import type {
+  CustomTerminalTheme,
+  TerminalThemeSelection,
 } from "../terminalThemes";
 import {
   connectionClientScopeKey,
@@ -78,6 +71,7 @@ export type ConfigurationProps = {
   accentColor: AccentColor;
   uiScale: number;
   terminalFontScale: number;
+  terminalFontName: string;
   mobileTerminalShortcuts: MobileTerminalShortcutRows;
   mobileTerminalSideShortcuts: MobileTerminalSideShortcuts;
   terminalThemeSelection: TerminalThemeSelection;
@@ -86,6 +80,7 @@ export type ConfigurationProps = {
   onAccentColorChange: (accentColor: AccentColor) => void;
   onUiScaleChange: (scale: number) => void;
   onTerminalFontScaleChange: (scale: number) => void;
+  onTerminalFontNameChange: (name: string) => void;
   onMobileTerminalShortcutsChange: (rows: MobileTerminalShortcutRows) => void;
   onMobileTerminalSideShortcutsChange: (
     shortcuts: MobileTerminalSideShortcuts,
@@ -105,7 +100,7 @@ export function ConfigurationDialog({
   onClose: () => void;
   initialTab?: ConfigurationTab;
 }) {
-  const { theme, accentColor, uiScale, terminalFontScale } = props;
+  const { theme, accentColor, uiScale } = props;
   const s = useStoreSelector(
     (state) => ({
       taskNotificationPermission: state.taskNotificationPermission,
@@ -392,62 +387,6 @@ export function ConfigurationDialog({
                   </button>
                 </div>
               </div>
-              <div className="config-preference-row">
-                <span className="config-item-icon">
-                  <Type size={15} />
-                </span>
-                <div className="config-item-copy">
-                  <strong>Terminal font size</strong>
-                  <span>Scale terminal text only</span>
-                </div>
-                <div
-                  className="config-scale-control"
-                  role="group"
-                  aria-label="Terminal font size"
-                >
-                  <button
-                    type="button"
-                    aria-label="Decrease terminal font size"
-                    disabled={terminalFontScale <= TERMINAL_FONT_SCALE_MIN}
-                    onClick={() =>
-                      props.onTerminalFontScaleChange(
-                        clampTerminalFontScale(
-                          terminalFontScale - TERMINAL_FONT_SCALE_STEP,
-                        ),
-                      )
-                    }
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="config-scale-value"
-                    aria-label={`Reset terminal font size, currently ${terminalFontScale}%`}
-                    disabled={terminalFontScale === TERMINAL_FONT_SCALE_DEFAULT}
-                    onClick={() =>
-                      props.onTerminalFontScaleChange(
-                        TERMINAL_FONT_SCALE_DEFAULT,
-                      )
-                    }
-                  >
-                    {terminalFontScale}%
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Increase terminal font size"
-                    disabled={terminalFontScale >= TERMINAL_FONT_SCALE_MAX}
-                    onClick={() =>
-                      props.onTerminalFontScaleChange(
-                        clampTerminalFontScale(
-                          terminalFontScale + TERMINAL_FONT_SCALE_STEP,
-                        ),
-                      )
-                    }
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-              </div>
               <button
                 type="button"
                 className="config-menu-item"
@@ -457,25 +396,8 @@ export function ConfigurationDialog({
                   <SquareTerminal size={15} />
                 </span>
                 <span className="config-item-copy">
-                  <strong>Terminal theme</strong>
-                  <span>
-                    Dark:{" "}
-                    {
-                      resolveTerminalThemeDefinition(
-                        "dark",
-                        props.terminalThemeSelection,
-                        props.customTerminalThemes,
-                      ).name
-                    }{" "}
-                    · Light:{" "}
-                    {
-                      resolveTerminalThemeDefinition(
-                        "light",
-                        props.terminalThemeSelection,
-                        props.customTerminalThemes,
-                      ).name
-                    }
-                  </span>
+                  <strong>Terminal</strong>
+                  <span>Customize how terminals look</span>
                 </span>
                 <ChevronRight size={15} />
               </button>
@@ -711,8 +633,12 @@ export function ConfigurationDialog({
             open
             selection={props.terminalThemeSelection}
             customThemes={props.customTerminalThemes}
+            fontName={props.terminalFontName}
+            fontScale={props.terminalFontScale}
             onSelectionChange={props.onTerminalThemeSelectionChange}
             onCustomThemesChange={props.onCustomTerminalThemesChange}
+            onFontNameChange={props.onTerminalFontNameChange}
+            onFontScaleChange={props.onTerminalFontScaleChange}
             onClose={() => setDetail(null)}
           />
         ) : null}

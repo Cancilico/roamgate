@@ -251,10 +251,12 @@ separate for desktop/mobile. Jump from a diff to its file preview.
   by default. **Background push** works without an active page; **Active page
   only** does not. Delivery is best-effort.
   [Web Push setup and revocation](docs/DEPLOYMENT.md#web-push-notifications).
-- Choose light/dark/system appearance, accents, built-in/custom terminal themes,
-  interface scale (80%–150%), and terminal font size (70%–200%), which scales
-  terminal text without resizing the rest of the interface. Preferences stay in
-  this browser.
+- Choose light/dark/system appearance, accents, and interface scale (80%–150%).
+  **Configuration > Appearance > Terminal** groups the terminal font, font size
+  (70%–200%, scaling terminal text without resizing the rest of the interface),
+  and built-in/custom terminal themes. The font can be any family installed on
+  the viewing device; Chromium browsers can list installed fonts, and missing
+  glyphs fall back to the default terminal fonts. Preferences stay in this browser.
 - **Configuration > Connection > Terminal incremental transport** saves a shared
   per-connection setting on the server. It reduces Herdr-to-Roamgate traffic,
   briefly reconnecting displays without stopping tasks; older servers retain

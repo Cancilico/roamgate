@@ -140,7 +140,7 @@ on a phone points to the phone, not your computer.
 1. Open Roamgate on your phone, authenticate if required, and select your project/pane.
 2. Use the floating terminal shortcuts for Ctrl/arrows, then open Changes to review
    the unified diff. Long-press opens file actions.
-3. Adjust **Configuration > Appearance > Interface scale** or **Terminal font size**
+3. Adjust **Configuration > Appearance > Interface scale** or **Terminal** font size
    if needed and install the PWA:
 
 | Browser | Install action |

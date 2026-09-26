@@ -14,7 +14,7 @@ import {
   type AnnotationComposerDraft,
 } from "./AnnotationComposerPopover";
 import { isMobileLayout, LAYOUT_CHANGE_EVENT } from "../layoutPreferences";
-import { TERMINAL_FONT_FAMILY, terminalFontOptions } from "../appearance";
+import { terminalFontOptions } from "../appearance";
 import { detectShortcutPlatform } from "../shortcutBindings";
 import {
   getShortcutSnapshot,
@@ -298,6 +298,7 @@ export type TerminalWorkspaceFileRequest = {
 export function TerminalView({
   paneId,
   terminalTheme,
+  terminalFontFamily,
   terminalFontScale,
   showMobileKeys = true,
   mobileShortcuts = defaultMobileTerminalShortcutRows(),
@@ -310,6 +311,7 @@ export function TerminalView({
 }: {
   paneId?: string;
   terminalTheme: ITheme;
+  terminalFontFamily: string;
   terminalFontScale: number;
   showMobileKeys?: boolean;
   mobileShortcuts?: MobileTerminalShortcutRows;
@@ -443,6 +445,7 @@ export function TerminalView({
   const [termInstance, setTermInstance] = useState<Terminal | null>(null);
   // Theme changes update xterm in place without recreating the terminal.
   const terminalThemeRef = useRef(terminalTheme);
+  const terminalFontFamilyRef = useRef(terminalFontFamily);
   const terminalFontScaleRef = useRef(terminalFontScale);
   const fitRef = useRef<FitAddon | null>(null);
   const attachedRef = useRef<string | null>(null);
@@ -841,7 +844,7 @@ export function TerminalView({
     const term = new Terminal({
       cursorBlink: true,
       disableStdin: composerOpenRef.current || shouldAvoidVirtualKeyboard(),
-      fontFamily: TERMINAL_FONT_FAMILY,
+      fontFamily: terminalFontFamilyRef.current,
       ...terminalDensity(terminalFontScaleRef.current),
       theme: terminalThemeRef.current,
       allowProposedApi: true,
@@ -2861,6 +2864,14 @@ export function TerminalView({
     const size = fitVisibleTerminal();
     if (size) resizeSyncRef.current?.sendNow(size);
   }, [terminalFontScale, termInstance, fitVisibleTerminal]);
+
+  useEffect(() => {
+    terminalFontFamilyRef.current = terminalFontFamily;
+    if (!termInstance) return;
+    termInstance.options.fontFamily = terminalFontFamily;
+    const size = fitVisibleTerminal();
+    if (size) resizeSyncRef.current?.sendNow(size);
+  }, [terminalFontFamily, termInstance, fitVisibleTerminal]);
 
   useEffect(() => {
     terminalThemeRef.current = terminalTheme;

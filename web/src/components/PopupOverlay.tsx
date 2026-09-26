@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { bridge } from "../api";
 import { store, useStoreSelector, type PopupInfo } from "../store";
 import { useConnectionClient } from "../useConnectionClient";
-import { TERMINAL_FONT_FAMILY, terminalFontOptions } from "../appearance";
+import { terminalFontOptions } from "../appearance";
 import { isMobileLayout } from "../layoutPreferences";
 import { terminalPushMatches } from "../terminalConnection";
 import { terminalCellAt, terminalWheelScroll } from "../terminalScroll";
@@ -60,9 +60,11 @@ function cssSizeFrom(
  */
 export function PopupOverlay({
   terminalTheme,
+  terminalFontFamily,
   terminalFontScale,
 }: {
   terminalTheme: ITheme;
+  terminalFontFamily: string;
   terminalFontScale: number;
 }) {
   const popup = useStoreSelector((s) => s.popup);
@@ -110,7 +112,7 @@ export function PopupOverlay({
     // to tofu just because it renders here.
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: TERMINAL_FONT_FAMILY,
+      fontFamily: terminalFontFamily,
       ...terminalFontOptions(isMobileLayout(), terminalFontScale),
       theme: terminalTheme,
       allowProposedApi: true,
@@ -287,10 +289,36 @@ export function PopupOverlay({
         previousFocusRef.current = null;
       }
     };
-    // Title/size render separately; the theme is updated without reattaching,
-    // and a font scale change applies to the next popup.
+    // Title/size render separately; theme and font family update without
+    // reattaching, and a font scale change applies to the next popup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popup?.terminal_id, connectionClient, attachRetry]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    const fit = fitRef.current;
+    if (!term || !fit) return;
+    term.options.fontFamily = terminalFontFamily;
+    fit.fit();
+    const terminalId = popup?.terminal_id;
+    // An in-flight attach sends the settled dimensions when it completes.
+    if (
+      !terminalId ||
+      attachedTerminalIdRef.current !== terminalId ||
+      !connectionClient.isCurrent()
+    )
+      return;
+    const next = fit.proposeDimensions();
+    if (!next) return;
+    void connectionClient
+      .call("terminal.resize", {
+        terminal_id: terminalId,
+        cols: next.cols,
+        rows: next.rows,
+        relay_active: false,
+      })
+      .catch(() => {});
+  }, [terminalFontFamily, popup?.terminal_id, connectionClient]);
 
   if (!popup) return null;
 

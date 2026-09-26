@@ -55,7 +55,9 @@ import packageJson from "../package.json";
 import {
   type AccentColor,
   normalizeAccentColor,
+  normalizeTerminalFontFamily,
   normalizeTerminalFontScale,
+  terminalFontFamilyStack,
   normalizeThemePreference,
   normalizeUiScale,
   normalizeZenMode,
@@ -201,6 +203,7 @@ const THEME_KEY = "theme";
 const ACCENT_COLOR_KEY = "accentColor";
 const UI_SCALE_KEY = "uiScale";
 const TERMINAL_FONT_SCALE_KEY = "terminalFontScale";
+const TERMINAL_FONT_FAMILY_KEY = "terminalFontFamily";
 const ZEN_MODE_KEY = "zenMode";
 const LazyTerminalView = lazyWithReload("terminal-view", () =>
   import("./components/TerminalView").then((module) => ({
@@ -218,9 +221,11 @@ const LazyPopupOverlay = lazyWithReload("popup-overlay", () =>
 
 function PopupOverlay({
   terminalTheme,
+  terminalFontFamily,
   terminalFontScale,
 }: {
   terminalTheme: ITheme;
+  terminalFontFamily: string;
   terminalFontScale: number;
 }) {
   // Gate the dynamic import on popup presence, not just its content, so a
@@ -231,6 +236,7 @@ function PopupOverlay({
     <Suspense fallback={null}>
       <LazyPopupOverlay
         terminalTheme={terminalTheme}
+        terminalFontFamily={terminalFontFamily}
         terminalFontScale={terminalFontScale}
       />
     </Suspense>
@@ -240,6 +246,7 @@ function PopupOverlay({
 type TerminalViewProps = {
   paneId?: string;
   terminalTheme: ITheme;
+  terminalFontFamily: string;
   terminalFontScale: number;
   showMobileKeys?: boolean;
   mobileShortcuts?: MobileTerminalShortcutRows;
@@ -354,6 +361,12 @@ function loadTerminalFontScale(): number {
   return normalizeTerminalFontScale(
     roamgateLocalStorage.getItem(TERMINAL_FONT_SCALE_KEY),
     roamgateLocalStorage.getItem(UI_SCALE_KEY),
+  );
+}
+
+function loadTerminalFontFamily(): string {
+  return normalizeTerminalFontFamily(
+    roamgateLocalStorage.getItem(TERMINAL_FONT_FAMILY_KEY),
   );
 }
 
@@ -931,6 +944,7 @@ function resizeTargetForSplit(
 // the old full terminal view.
 function TerminalPaneLayout({
   terminalTheme,
+  terminalFontFamily,
   terminalFontScale,
   mobileShortcuts,
   mobileSideShortcuts,
@@ -943,6 +957,7 @@ function TerminalPaneLayout({
   onExitZenMode,
 }: {
   terminalTheme: ITheme;
+  terminalFontFamily: string;
   terminalFontScale: number;
   mobileShortcuts: MobileTerminalShortcutRows;
   mobileSideShortcuts: MobileTerminalSideShortcuts;
@@ -995,6 +1010,7 @@ function TerminalPaneLayout({
       <TerminalView
         key={mountKeyForPane(activePaneId)}
         terminalTheme={terminalTheme}
+        terminalFontFamily={terminalFontFamily}
         terminalFontScale={terminalFontScale}
         mobileShortcuts={mobileShortcuts}
         mobileSideShortcuts={mobileSideShortcuts}
@@ -1053,6 +1069,7 @@ function TerminalPaneLayout({
           key={mountKeyForPane(activePaneId)}
           paneId={activePaneId}
           terminalTheme={terminalTheme}
+          terminalFontFamily={terminalFontFamily}
           terminalFontScale={terminalFontScale}
           mobileShortcuts={mobileShortcuts}
           mobileSideShortcuts={mobileSideShortcuts}
@@ -1160,6 +1177,7 @@ function TerminalPaneLayout({
               key={mountKeyForPane(layoutPane.pane_id)}
               paneId={layoutPane.pane_id}
               terminalTheme={terminalTheme}
+              terminalFontFamily={terminalFontFamily}
               terminalFontScale={terminalFontScale}
               showMobileKeys={isActive}
               mobileShortcuts={mobileShortcuts}
@@ -1249,6 +1267,10 @@ export default function App() {
   const [terminalFontScale, setTerminalFontScale] = useState<number>(() =>
     loadTerminalFontScale(),
   );
+  const [terminalFontName, setTerminalFontName] = useState<string>(() =>
+    loadTerminalFontFamily(),
+  );
+  const terminalFontFamily = terminalFontFamilyStack(terminalFontName);
   const [mobileTerminalShortcuts, setMobileTerminalShortcuts] =
     useState<MobileTerminalShortcutRows>(loadMobileTerminalShortcuts);
   const [mobileTerminalSideShortcuts, setMobileTerminalSideShortcuts] =
@@ -3202,6 +3224,9 @@ export default function App() {
     );
   }, [terminalFontScale]);
   useEffect(() => {
+    roamgateLocalStorage.setItem(TERMINAL_FONT_FAMILY_KEY, terminalFontName);
+  }, [terminalFontName]);
+  useEffect(() => {
     roamgateLocalStorage.setItem(ZEN_MODE_KEY, serializeZenMode(zenMode));
   }, [zenMode]);
   useEffect(() => {
@@ -3475,6 +3500,10 @@ export default function App() {
               onUiScaleChange={setUiScale}
               terminalFontScale={terminalFontScale}
               onTerminalFontScaleChange={setTerminalFontScale}
+              terminalFontName={terminalFontName}
+              onTerminalFontNameChange={(name) =>
+                setTerminalFontName(normalizeTerminalFontFamily(name))
+              }
               zenMode={zenMode}
               onZenModeChange={applyZenMode}
               onMobileTerminalShortcutsChange={setMobileTerminalShortcuts}
@@ -3848,6 +3877,7 @@ export default function App() {
               <div className="workspace-terminal-surface">
                 <TerminalPaneLayout
                   terminalTheme={terminalTheme}
+                  terminalFontFamily={terminalFontFamily}
                   terminalFontScale={terminalFontScale}
                   mobileShortcuts={mobileTerminalShortcuts}
                   mobileSideShortcuts={mobileTerminalSideShortcuts}
@@ -4010,6 +4040,7 @@ export default function App() {
       {viewportDebugEnabled ? <ViewportDebugOverlay /> : null}
       <PopupOverlay
         terminalTheme={terminalTheme}
+        terminalFontFamily={terminalFontFamily}
         terminalFontScale={terminalFontScale}
       />
       {paneJumpOpen ? (
