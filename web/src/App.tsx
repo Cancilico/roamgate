@@ -76,7 +76,6 @@ import { AgentIcon } from "./components/AgentIcon";
 import { paneHasAgentHistory } from "./components/agentSession";
 import { CloseButton } from "./components/CloseButton";
 import { focusIfUnchanged } from "./components/dialogFocus";
-import { CommandCombobox } from "./components/CommandCombobox";
 import { CONFIG_MENU_ID, ConfigMenu } from "./components/ConfigMenu";
 import { ConnectionSwitcher } from "./components/ConnectionSwitcher";
 import {
@@ -194,6 +193,16 @@ import "./styles/layout/sidebar.css";
 import "./styles/layout/toast.css";
 import "./styles/layout/mobile-nav.css";
 
+const CommandCombobox = lazyWithReload("command-menu", () =>
+  import("./components/CommandCombobox").then((module) => ({
+    default: module.CommandCombobox,
+  })),
+);
+const HostFilesPanel = lazyWithReload("host-files", () =>
+  import("./components/HostFilesPanel").then((module) => ({
+    default: module.HostFilesPanel,
+  })),
+);
 const WorkspaceInspectorHost = lazyWithReload("workspace-inspector", () =>
   import("./components/WorkspaceInspectorHost").then((module) => ({
     default: module.WorkspaceInspectorHost,
@@ -3458,12 +3467,20 @@ export default function App() {
         </div>
         <div className="topbar-actions">
           <div className="topbar-command-group">
-            <CommandCombobox
-              key={`${resourceUiKey}:commands`}
-              onOpenFileExplorer={openFileExplorer}
-              onOpenFile={openFileExplorerFile}
-              onOpenDiffViewer={openDiffViewer}
-            />
+            <Suspense
+              fallback={
+                <button className="ghost" disabled>
+                  Commands
+                </button>
+              }
+            >
+              <CommandCombobox
+                key={`${resourceUiKey}:commands`}
+                onOpenFileExplorer={openFileExplorer}
+                onOpenFile={openFileExplorerFile}
+                onOpenDiffViewer={openDiffViewer}
+              />
+            </Suspense>
             <ConfigMenu
               key={`${resourceUiKey}:config`}
               theme={theme}
@@ -4009,6 +4026,9 @@ export default function App() {
           </div>
         </main>
       </div>
+      <Suspense fallback={null}>
+        <HostFilesPanel />
+      </Suspense>
       <GlobalTooltip />
       {viewportDebugEnabled ? <ViewportDebugOverlay /> : null}
       <PopupOverlay terminalTheme={terminalTheme} />

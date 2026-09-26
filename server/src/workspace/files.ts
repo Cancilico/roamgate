@@ -1,3 +1,12 @@
+import { dirname } from "node:path";
+import {
+  editorPath,
+  readEditorFile,
+  writeEditorFile,
+  remoteEditor,
+  encodeEditorDocument,
+} from "./editor-files";
+import type { EditorWrite } from "../../../shared/fileEditor";
 import type { HerdrClient } from "../bridge/herdr-client";
 import { sshCommandArgv } from "../bridge/ssh-command";
 import { checkoutPath as getCheckoutPath } from "./utils";
@@ -86,8 +95,55 @@ export function createFileHandlers({
     return (result as any)?.workspace ?? result;
   }
 
+  async function hostPath(params: Record<string, unknown>) {
+    const host = sshHost();
+    const base = typeof params.base === "string" ? params.base : undefined;
+    return host
+      ? ((
+          await remoteEditor(host, "path", { path: params.path, base }, shQuote)
+        ).path as string)
+      : editorPath(params.path, base);
+  }
+
+  async function editorOperation(
+    operation: "path" | "read" | "write",
+    params: Record<string, unknown>,
+  ) {
+    try {
+      const host = sshHost();
+      if (operation === "write")
+        encodeEditorDocument(params as unknown as EditorWrite);
+      const result = host
+        ? await remoteEditor(host, operation, params, shQuote)
+        : operation === "path"
+          ? { path: await hostPath(params) }
+          : operation === "read"
+            ? await readEditorFile(await hostPath(params))
+            : await writeEditorFile({
+                ...params,
+                path: await hostPath(params),
+              } as unknown as EditorWrite);
+      return { ok: true as const, result };
+    } catch (error) {
+      const e = error as Error & { code?: string };
+      return {
+        ok: false as const,
+        error: { code: e.code ?? "FILE_ERROR", message: e.message },
+      };
+    }
+  }
+
   async function fileTarget(params: Record<string, unknown>, method: string) {
     const workspaceId = String(params.workspace_id ?? "");
+    if (params.scope === "filesystem" && !workspaceId) {
+      const path = await hostPath(params);
+      return {
+        workspaceId: "",
+        workspace: undefined,
+        checkoutPath: dirname(path),
+        path,
+      };
+    }
     if (!workspaceId) throw new Error(`${method} requires workspace_id`);
     const path = sanitizePreviewPath(params.path);
     if (!path) throw new Error(`${method} requires path`);
@@ -99,6 +155,10 @@ export function createFileHandlers({
 
   async function downloadTarget(params: Record<string, unknown>) {
     const workspaceId = String(params.workspace_id ?? "");
+    if (params.scope === "filesystem" && !workspaceId) {
+      const path = await hostPath(params);
+      return { checkoutPath: dirname(path), path };
+    }
     if (!workspaceId) throw new Error("file.download requires workspace_id");
     const path =
       params.scope === "filesystem"
@@ -135,9 +195,12 @@ export function createFileHandlers({
 
   async function listFiles(params: Record<string, unknown>) {
     const workspaceId = String(params.workspace_id ?? "");
-    if (!workspaceId) throw new Error("file.list requires workspace_id");
-    const workspace = await getWorkspace(workspaceId);
-    const checkoutPath = await explorerRoot(workspaceId, workspace);
+    if (!workspaceId && params.scope !== "filesystem")
+      throw new Error("file.list requires workspace_id");
+    const workspace = workspaceId ? await getWorkspace(workspaceId) : undefined;
+    const checkoutPath = workspaceId
+      ? await explorerRoot(workspaceId, workspace)
+      : await hostPath(params);
     if (!checkoutPath) throw new Error("workspace has no directory path");
     const filesystem = params.scope === "filesystem";
     const rootPath = filesystem
@@ -500,6 +563,7 @@ export function createFileHandlers({
   }
 
   return {
+    editorOperation,
     listWorkspaceFiles: listFiles,
     resolveWorkspaceFiles: resolveFiles,
     readWorkspaceFile: readFile,

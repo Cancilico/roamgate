@@ -30,6 +30,9 @@ export default defineConfig({
         // Group small grammars into lazy chunks to keep expanded highlighting
         // within the embedded server's asset-count budget.
         manualChunks(id) {
+          // Editor grammars load together only when an editable buffer opens.
+          if (/\/@codemirror\/lang-|\/@codemirror\/legacy-modes\//.test(id))
+            return "editor-languages";
           const language = id.match(
             /@shikijs\/langs\/dist\/([^/]+)\.mjs$/,
           )?.[1];

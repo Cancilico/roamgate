@@ -1,3 +1,5 @@
+import { bridge } from "../api";
+import { openHostFile } from "../fileEditorNavigation";
 import {
   shortcutMatches,
   shortcutTitle,
@@ -411,6 +413,24 @@ export function CommandCombobox({
     : allWorkspaces;
 
   const currentActions: ActionDefinition[] = [];
+  if (bridge.hello?.capabilities.host_files === true) {
+    const base =
+      focusedWorkspace?.worktree?.checkout_path ?? focusedWorkspace?.cwd;
+    currentActions.push({
+      key: "host-open-path",
+      icon: <FolderOpen size={15} />,
+      title: "Open host path...",
+      keywords: ["files", "open path", "filesystem", "editor"],
+      run: () => openHostFile({ base }),
+    });
+    currentActions.push({
+      key: "host-new-file",
+      icon: <FileText size={15} />,
+      title: "New file",
+      keywords: ["create file", "editor"],
+      run: () => openHostFile({ base, newFile: true }),
+    });
+  }
   if (focusedWorkspace && focusedWorktreeSource) {
     currentActions.push({
       key: "current-new-worktree",

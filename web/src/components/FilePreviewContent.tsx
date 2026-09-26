@@ -1,3 +1,6 @@
+import { subscribeFileSaved } from "../fileEditorSaved";
+import { bridge } from "../api";
+import { openHostFile } from "../fileEditorNavigation";
 import { shortcutMatches } from "../shortcutPreferences";
 import {
   HTML_PREVIEW_MAX_BYTES,
@@ -195,7 +198,9 @@ export function FilePreviewContent({
   onRefresh,
   onCreateAnnotation,
   onReanchorAnnotations,
+  showEdit = true,
 }: {
+  showEdit?: boolean;
   entry: FileExplorerEntry | null;
   preview: FilePreview | null;
   loading: boolean;
@@ -240,6 +245,7 @@ export function FilePreviewContent({
   const pdfTooLarge =
     hasPdfPreview && (preview?.size ?? 0) > PDF_INLINE_PREVIEW_MAX_BYTES;
   const hasHtmlPreview =
+    !!preview?.workspace_id &&
     hasPreviewText &&
     !preview?.binary &&
     preview?.type !== "directory" &&
@@ -328,6 +334,16 @@ export function FilePreviewContent({
           quote: pendingAnnotation.quote,
         }
       : null;
+
+  useEffect(() => {
+    if (!preview || !onRefresh) return;
+    const path = normalizeFilesystemPath(
+      /^(?:\/|[a-z]:[\\/])/i.test(preview.path)
+        ? preview.path
+        : `${preview.root}/${preview.path}`,
+    );
+    return subscribeFileSaved(connectionClient, path, onRefresh);
+  }, [connectionClient, preview, onRefresh]);
 
   useEffect(() => {
     setPreviewMode("rendered");
@@ -483,6 +499,27 @@ export function FilePreviewContent({
             {entry?.name ?? "Preview"}
           </div>
           <div className="file-preview-head-actions">
+            {showEdit &&
+            preview &&
+            !preview.binary &&
+            preview.type !== "directory" &&
+            bridge.hello?.capabilities.file_editing === true ? (
+              <button
+                type="button"
+                className="ghost"
+                disabled={loading}
+                onClick={() =>
+                  openHostFile({
+                    path: preview.path,
+                    base: preview.root,
+                    edit: true,
+                    connectionId: connectionClient.connectionId,
+                  })
+                }
+              >
+                Edit
+              </button>
+            ) : null}
             {!showingChanges && showDirectoryWorkspaceAction ? (
               <button
                 type="button"

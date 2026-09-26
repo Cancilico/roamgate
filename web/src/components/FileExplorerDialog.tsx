@@ -1,3 +1,5 @@
+import { bridge } from "../api";
+import { openHostFile } from "../fileEditorNavigation";
 import { roamgateLocalStorage } from "../browserStorage";
 import {
   type DragEvent,
@@ -582,6 +584,7 @@ function FileExplorerContent({
     for (const path of pathsToRefresh) {
       void loadDirectory(path, true);
     }
+    void loadGitStatus(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [explorerRefreshKey, explorerRefreshVersion]);
 
@@ -1596,6 +1599,37 @@ function FileExplorerContent({
         <p className="modal-error">No workspace is focused.</p>
       ) : null}
 
+      {bridge.hello?.capabilities.host_files === true ? (
+        <div className="file-explorer-toolbar">
+          <button
+            className="ghost"
+            type="button"
+            onClick={() =>
+              openHostFile({
+                base:
+                  rootInfo?.root ||
+                  (workspace ? initialWorkspacePath(workspace) : undefined),
+              })
+            }
+          >
+            Open path...
+          </button>
+          <button
+            className="ghost"
+            type="button"
+            onClick={() =>
+              openHostFile({
+                newFile: true,
+                base:
+                  rootInfo?.root ||
+                  (workspace ? initialWorkspacePath(workspace) : undefined),
+              })
+            }
+          >
+            New file
+          </button>
+        </div>
+      ) : null}
       <div className="file-explorer-content">
         <div className="file-explorer-browser">
           {filesystem && workspace ? (

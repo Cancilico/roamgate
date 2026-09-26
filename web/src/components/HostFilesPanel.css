@@ -1,0 +1,98 @@
+.host-files-panel {
+  position: fixed;
+  inset: 52px 0 0 auto;
+  width: min(100%, 1000px);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--viewer-panel-bg, var(--bg));
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px #0003;
+}
+.host-files-header,
+.host-files-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px;
+  flex-shrink: 0;
+}
+.host-files-host,
+.host-files-path {
+  flex: 1;
+  overflow-wrap: anywhere;
+  min-width: 80px;
+}
+.host-files-host {
+  color: var(--muted);
+}
+.host-files-browse {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.host-files-browse > .filesystem-browser {
+  width: 30%;
+  min-width: 160px;
+  overflow: auto;
+}
+.host-files-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.host-files-detail > .file-preview {
+  flex: 1;
+  min-height: 0;
+}
+.host-files-editors {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.host-files-buffer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.host-files-buffer > span {
+  padding: 4px 8px;
+  color: var(--muted);
+}
+.host-files-buffer > pre {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+}
+.host-file-code {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.host-files-panel > p {
+  margin: 4px 8px;
+}
+@media (max-width: 640px) {
+  .host-files-panel {
+    inset: 0;
+    width: 100%;
+  }
+  .host-files-browse {
+    flex-direction: column;
+  }
+  .host-files-browse > .filesystem-browser {
+    width: 100%;
+    max-height: 30%;
+  }
+  .host-files-editors.is-comparing {
+    flex-direction: column;
+  }
+}

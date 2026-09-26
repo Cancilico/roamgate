@@ -284,6 +284,39 @@ caller has failed. Those objects may be unreachable; no successful snapshot toke
 is returned to the failed caller. Concurrent captures still contend on the same
 fixed remote ownership directory. No remote process-tree termination is assumed.
 
+## File editing
+
+The host file panel owns one in-memory buffer, keyed by its captured connection
+lease and canonical absolute path. Workspace selection does not change its
+save target. The bridge advertises `file_editing` and `host_files`; older bridges
+retain existing preview behavior. Filesystem `file.list`, `file.read` and
+`file.download` accept `scope: "filesystem"` without a workspace ID. Existing
+workspace-relative calls keep their containment checks.
+
+`file.editor_path` resolves absolute, home-relative or explicitly based paths.
+`file.editor_read` returns a complete UTF-8 document (at most 2 MiB), canonical
+path, BOM/newline metadata and a revision of content plus file identity and
+permissions. `file.write` accepts normalized text, encoding metadata and either
+an expected revision/canonical path or `expected_revision: null` (create only).
+These editor RPCs return `{ok: true, result}` or `{ok: false, error: {code,
+message}}`. Preview responses are never used as writable documents.
+
+Writes serialize per target locally and lock the containing directory in the
+SSH helper. Saves stage and sync a sibling temporary file, recheck the revision,
+then replace the destination; creation uses an exclusive hard link. Symlinks
+remain intact, and changed targets conflict. Ownership/mode preservation must
+succeed before replacement; multiple hard links are rejected. This protects
+against detected concurrent changes and partial writes, but does not provide a
+filesystem transaction against unrelated writers racing the final replacement.
+Extended attributes/ACLs are not copied by the initial editor implementation.
+
+SSH uses a bundled Python 3 standard-library helper, with paths and content sent
+as JSON stdin rather than shell source. Missing Python or unsupported host
+operations report an error without changing the buffer. A failed/lost save
+reply triggers a reread before accepting success; saves are never automatically
+retried. Disconnections preserve edits in memory and require returning to the
+original connection. No draft contents are written to browser storage.
+
 ## Filesystem browsing
 
 `file.list` is checkout-relative with realpath/symlink escape checks. Each
