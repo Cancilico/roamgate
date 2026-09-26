@@ -67,7 +67,7 @@ export function writeMobileControlsPlacement(
   }
 }
 
-/** Vertical geometry in viewport pixels (y grows downward). */
+/** Vertical geometry in CSS pixels (y grows downward). */
 export interface MobileControlsStackBounds {
   /** Top edge of the highest control at `offsetY = 0`. */
   top: number;

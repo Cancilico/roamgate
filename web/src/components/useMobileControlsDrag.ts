@@ -45,7 +45,7 @@ function safeAreaBottom() {
 }
 
 /**
- * Stack geometry at `offsetY = 0`. Layout boxes come from the resolved
+ * Stack geometry in CSS pixels at `offsetY = 0`. Layout boxes come from the resolved
  * `bottom` so collapse/keyboard transforms and drag translation are ignored.
  */
 function measureStackBounds(
@@ -57,11 +57,13 @@ function measureStackBounds(
   if (elements.length === 0) return null;
   // Fixed children resolve against the transformed .app box.
   const appRect = app.getBoundingClientRect();
+  const scale = appRect.width / app.offsetWidth;
   let top = Infinity;
   let bottom = -Infinity;
   for (const element of elements) {
     const elementBottom =
-      appRect.bottom - Number.parseFloat(getComputedStyle(element).bottom);
+      appRect.bottom / scale -
+      Number.parseFloat(getComputedStyle(element).bottom);
     if (!Number.isFinite(elementBottom)) continue;
     top = Math.min(top, elementBottom - element.offsetHeight);
     bottom = Math.max(bottom, elementBottom);
@@ -77,14 +79,14 @@ function measureStackBounds(
     const rect = header.getBoundingClientRect();
     if (rect.height === 0 || getComputedStyle(header).display === "none")
       continue;
-    headerBottom = Math.max(headerBottom, rect.bottom);
+    headerBottom = Math.max(headerBottom, rect.bottom / scale);
   }
   return {
     top: top + appliedOffset,
     bottom: bottom + appliedOffset,
     minTop: headerBottom + EDGE_GAP_PX,
     maxBottom:
-      Math.min(appRect.bottom, window.innerHeight) -
+      Math.min(appRect.bottom, window.innerHeight) / scale -
       EDGE_GAP_PX -
       safeAreaBottom(),
   };
@@ -157,6 +159,7 @@ export function useMobileControlsDrag({
     let start: {
       x: number;
       y: number;
+      scale: number;
       claimed: boolean;
       baseOffset: number;
       bounds: MobileControlsStackBounds | null;
@@ -178,6 +181,7 @@ export function useMobileControlsDrag({
       start = {
         x,
         y,
+        scale: app.getBoundingClientRect().width / app.offsetWidth,
         claimed: false,
         baseOffset: latest.current.appliedOffset,
         bounds: null,
@@ -200,10 +204,13 @@ export function useMobileControlsDrag({
         app.classList.add("mobile-controls-dragging");
       }
       // Horizontal follows the finger; vertical stops at the clamp.
-      app.style.setProperty("--mobile-controls-drag-x", `${dx}px`);
+      app.style.setProperty(
+        "--mobile-controls-drag-x",
+        `${dx / start.scale}px`,
+      );
       app.style.setProperty(
         "--mobile-controls-drag-y",
-        `${start.baseOffset - offsetFor(dy)}px`,
+        `${start.baseOffset - offsetFor(dy / start.scale)}px`,
       );
       return true;
     };
@@ -217,7 +224,7 @@ export function useMobileControlsDrag({
         side,
         offsetY: bounds
           ? clampMobileControlsOffset(
-              current.baseOffset - (y - current.y),
+              current.baseOffset - (y - current.y) / current.scale,
               bounds,
             )
           : current.baseOffset,
@@ -230,13 +237,14 @@ export function useMobileControlsDrag({
         latest.current.onPlacementChange(next);
       });
       if (reducedMotion()) return;
+      const scale = app.getBoundingClientRect().width / app.offsetWidth;
       animations = elements.map((element, index) => {
         const after = element.getBoundingClientRect();
         const from = before[index]!;
         return element.animate(
           [
             {
-              translate: `${from.left - after.left}px ${from.top - after.top}px`,
+              translate: `${(from.left - after.left) / scale}px ${(from.top - after.top) / scale}px`,
             },
             { translate: "0px 0px" },
           ],
