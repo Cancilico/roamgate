@@ -39,6 +39,48 @@ export interface PushTask extends TaskEvent {
 const MAX_DEVICES = 128;
 const MAX_BODY_BYTES = 16 * 1024;
 
+function clip(value: string, max = 80) {
+  return value.slice(0, max);
+}
+
+/** The JSON message the service worker renders for one device delivery. */
+export function taskPushPayload(task: PushTask) {
+  const target =
+    task.workspaceId && task.paneId
+      ? {
+          connectionId: task.connectionId,
+          runtimeGeneration: task.runtimeGeneration,
+          workspaceId: task.workspaceId,
+          paneId: task.paneId,
+        }
+      : null;
+  // Status-derived tasks carry labels resolved by the runtime, with ID fallbacks.
+  const fallbackBody = [
+    task.agent,
+    task.connectionLabel?.trim(),
+    task.workspaceLabel?.trim() || task.workspaceId,
+    task.tabLabel?.trim() || task.tabId || task.paneId,
+  ]
+    .filter((part): part is string => !!part)
+    .map((part) => clip(part))
+    .join(" \u00b7 ");
+  return {
+    title:
+      task.title ??
+      (task.kind === "blocked"
+        ? "Roamgate agent needs input"
+        : "Roamgate task completed"),
+    body: task.body ?? fallbackBody,
+    tag: JSON.stringify([
+      "roamgate-task",
+      task.connectionId,
+      task.runtimeGeneration,
+      task.paneId ?? task.title ?? task.kind,
+    ]),
+    target,
+  };
+}
+
 /** Only browser push providers are valid outbound destinations, never arbitrary URLs. */
 export function validatePushEndpoint(value: unknown): string {
   if (typeof value !== "string" || value.length > 4096)
@@ -244,48 +286,17 @@ export function createWebPushService(
       !device.preferences[task.kind]
     )
       return;
-    const target = {
-      connectionId: task.connectionId,
-      runtimeGeneration: task.runtimeGeneration,
-      workspaceId: task.workspaceId,
-      paneId: task.paneId,
-    };
     try {
-      await send(
-        device.subscription,
-        JSON.stringify({
-          title:
-            task.kind === "blocked"
-              ? "Roamgate agent needs input"
-              : "Roamgate task completed",
-          body: [
-            task.agent,
-            task.connectionLabel?.trim(),
-            task.workspaceLabel?.trim() || task.workspaceId,
-            task.tabLabel?.trim() || task.tabId || task.paneId,
-          ]
-            .filter((part): part is string => !!part)
-            .map((part) => part.slice(0, 80))
-            .join(" · "),
-          tag: JSON.stringify([
-            "roamgate-task",
-            task.connectionId,
-            task.runtimeGeneration,
-            task.paneId,
-          ]),
-          target,
-        }),
-        {
-          TTL: 300,
-          urgency: "high",
-          timeout: 10_000,
-          vapidDetails: {
-            subject: subject!,
-            publicKey: registry.publicKey,
-            privateKey: registry.privateKey,
-          },
+      await send(device.subscription, JSON.stringify(taskPushPayload(task)), {
+        TTL: 300,
+        urgency: "high",
+        timeout: 10_000,
+        vapidDetails: {
+          subject: subject!,
+          publicKey: registry.publicKey,
+          privateKey: registry.privateKey,
         },
-      );
+      });
     } catch (error) {
       const status = (error as { statusCode?: number } | null)?.statusCode;
       if (status === 404 || status === 410) {

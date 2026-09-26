@@ -218,6 +218,15 @@ describe("bridge connection lifecycle", () => {
       }),
     } as MessageEvent);
     expect(bridge.status).toBe("connecting");
+    ManualWebSocket.instance.onmessage?.({
+      data: JSON.stringify({
+        hello: true,
+        bridge_protocol_version: 2,
+        default_connection_id: "alpha",
+        capabilities: { file_reveal: "yes" },
+      }),
+    } as MessageEvent);
+    expect(bridge.status).toBe("connecting");
 
     sendHello(ManualWebSocket.instance, "alpha");
     expect(bridge.status).toBe("connected");

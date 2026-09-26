@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { TERMINAL_FONT_FAMILY } from "./appearance";
 import { TerminalView } from "./components/TerminalView";
 import { terminalThemeFor } from "./terminalThemes";
 import {
@@ -345,7 +346,8 @@ function renderTerminalSnapshot() {
     return renderToStaticMarkup(
       React.createElement(TerminalView, {
         terminalTheme: terminalThemeFor("dark"),
-        uiScale: 100,
+        terminalFontFamily: TERMINAL_FONT_FAMILY,
+        terminalFontScale: 100,
       }),
     );
   } finally {

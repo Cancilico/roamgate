@@ -9,6 +9,10 @@ import { assertSshTunnelPlatformSupported } from "../bridge/ssh-tunnel";
 import { defaultAuthTokenPath, loadOrCreateAuthToken } from "./auth-token";
 import { roamgateEnv } from "./environment";
 import { type LogLevel, parseLogLevel, serverLogger } from "../utils/logger";
+import {
+  parseTaskNotificationSource,
+  type TaskNotificationSource,
+} from "../notifications/herdr-notification-listener";
 
 type CliArgs = Partial<{
   host: string;
@@ -22,6 +26,7 @@ type CliArgs = Partial<{
   session: string;
   "public-dir": string;
   "log-level": string;
+  "notification-source": string;
   open: boolean;
   help: boolean;
   version: boolean;
@@ -43,6 +48,7 @@ export type ServerConfig = {
   session?: string;
   openBrowserRequested: boolean;
   logLevel: LogLevel;
+  taskNotificationSource: TaskNotificationSource;
   hasExplicitSocketPath: boolean;
   hasExplicitClientSocketPath: boolean;
 };
@@ -59,6 +65,7 @@ const cliOptions = {
   session: { type: "string" },
   "public-dir": { type: "string" },
   "log-level": { type: "string" },
+  "notification-source": { type: "string" },
   open: { type: "boolean" },
   help: { type: "boolean" },
   version: { type: "boolean", short: "V" },
@@ -133,6 +140,8 @@ Options (flags override env vars; ROAMGATE_* overrides HERDR_GUI_*):
   --session <name>           named herdr session   (env HERDR_SESSION)
   --public-dir <path>        static assets dir     (env PUBLIC_DIR,      default: embedded)
   --log-level <level>        error|warn|info|debug  (env ROAMGATE_LOG_LEVEL, default: info)
+  --notification-source <s>  herdr|status: task alerts follow Herdr notifications or
+                             Roamgate's own status tracker (env ROAMGATE_NOTIFICATION_SOURCE, default: herdr)
   --open                     open browser on start (env OPEN_BROWSER=1)
   -V, --version              show version
   --help                     show this help
@@ -150,6 +159,16 @@ Options (flags override env vars; ROAMGATE_* overrides HERDR_GUI_*):
     logLevel = resolveServerLogLevel(
       args["log-level"],
       roamgateEnv("LOG_LEVEL"),
+    );
+  } catch (error) {
+    console.error(`[bridge] ${(error as Error).message}`);
+    process.exit(2);
+  }
+
+  let taskNotificationSource: TaskNotificationSource;
+  try {
+    taskNotificationSource = parseTaskNotificationSource(
+      args["notification-source"] ?? roamgateEnv("NOTIFICATION_SOURCE"),
     );
   } catch (error) {
     console.error(`[bridge] ${(error as Error).message}`);
@@ -229,6 +248,7 @@ Options (flags override env vars; ROAMGATE_* overrides HERDR_GUI_*):
     openBrowserRequested:
       args.open === true || process.env.OPEN_BROWSER === "1",
     logLevel,
+    taskNotificationSource,
     hasExplicitSocketPath,
     hasExplicitClientSocketPath,
   };

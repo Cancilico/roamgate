@@ -1,12 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import {
+  clampTerminalFontScale,
   clampUiScale,
+  MAX_TERMINAL_FONT_NAME_LENGTH,
   normalizeAccentColor,
+  normalizeTerminalFontFamily,
+  normalizeTerminalFontScale,
   normalizeThemePreference,
   normalizeUiScale,
   normalizeZenMode,
   resolveSystemTheme,
   serializeZenMode,
+  TERMINAL_FONT_FAMILY,
+  TERMINAL_FONT_SCALE_DEFAULT,
+  TERMINAL_FONT_SCALE_MAX,
+  TERMINAL_FONT_SCALE_MIN,
+  terminalFontFamilyStack,
+  terminalFontOptions,
   UI_SCALE_DEFAULT,
   UI_SCALE_MAX,
   UI_SCALE_MIN,
@@ -80,6 +90,96 @@ describe("normalizeUiScale", () => {
   test("parses and clamps stored values", () => {
     expect(normalizeUiScale("110")).toBe(110);
     expect(normalizeUiScale("999")).toBe(UI_SCALE_MAX);
+  });
+});
+
+describe("clampTerminalFontScale", () => {
+  test("rounds values to the nearest step", () => {
+    expect(clampTerminalFontScale(150)).toBe(150);
+    expect(clampTerminalFontScale(103)).toBe(105);
+  });
+
+  test("clamps to the supported range", () => {
+    expect(clampTerminalFontScale(10)).toBe(TERMINAL_FONT_SCALE_MIN);
+    expect(clampTerminalFontScale(500)).toBe(TERMINAL_FONT_SCALE_MAX);
+  });
+
+  test("falls back to the default for non-finite values", () => {
+    expect(clampTerminalFontScale(Number.NaN)).toBe(
+      TERMINAL_FONT_SCALE_DEFAULT,
+    );
+  });
+});
+
+describe("normalizeTerminalFontScale", () => {
+  test("defaults when nothing is stored", () => {
+    expect(normalizeTerminalFontScale(null, null)).toBe(
+      TERMINAL_FONT_SCALE_DEFAULT,
+    );
+  });
+
+  test("parses and clamps its own stored value, ignoring the UI scale", () => {
+    expect(normalizeTerminalFontScale("180", "90")).toBe(180);
+    expect(normalizeTerminalFontScale("999", "90")).toBe(
+      TERMINAL_FONT_SCALE_MAX,
+    );
+    expect(normalizeTerminalFontScale("large", "90")).toBe(
+      TERMINAL_FONT_SCALE_DEFAULT,
+    );
+  });
+
+  test("inherits a UI scale saved before terminal text was split out", () => {
+    expect(normalizeTerminalFontScale(null, "125")).toBe(125);
+    expect(normalizeTerminalFontScale(null, "large")).toBe(UI_SCALE_DEFAULT);
+  });
+});
+
+describe("terminalFontOptions", () => {
+  test("scales the desktop and compact base sizes", () => {
+    expect(terminalFontOptions(false, 100).fontSize).toBe(13);
+    expect(terminalFontOptions(false, 200).fontSize).toBe(26);
+    expect(terminalFontOptions(true, 150).fontSize).toBe(18);
+  });
+});
+
+describe("normalizeTerminalFontFamily", () => {
+  test("keeps a plain family name and collapses whitespace", () => {
+    expect(normalizeTerminalFontFamily("JetBrains Mono")).toBe(
+      "JetBrains Mono",
+    );
+    expect(normalizeTerminalFontFamily("  Sarasa   Mono TC ")).toBe(
+      "Sarasa Mono TC",
+    );
+  });
+
+  test("treats missing or blank values as the default stack", () => {
+    expect(normalizeTerminalFontFamily(null)).toBe("");
+    expect(normalizeTerminalFontFamily("   ")).toBe("");
+  });
+
+  test("drops characters that would escape the quoted family name", () => {
+    expect(normalizeTerminalFontFamily('Evil", monospace; x{')).toBe(
+      "Evil monospace x",
+    );
+    expect(normalizeTerminalFontFamily("A\\B\n'C'")).toBe("ABC");
+  });
+
+  test("caps the stored name length", () => {
+    expect(normalizeTerminalFontFamily("a".repeat(300))).toHaveLength(
+      MAX_TERMINAL_FONT_NAME_LENGTH,
+    );
+  });
+});
+
+describe("terminalFontFamilyStack", () => {
+  test("uses the default stack without a preferred font", () => {
+    expect(terminalFontFamilyStack("")).toBe(TERMINAL_FONT_FAMILY);
+  });
+
+  test("leads the default stack with the quoted preferred font", () => {
+    expect(terminalFontFamilyStack("Cascadia Code")).toBe(
+      `"Cascadia Code", ${TERMINAL_FONT_FAMILY}`,
+    );
   });
 });
 

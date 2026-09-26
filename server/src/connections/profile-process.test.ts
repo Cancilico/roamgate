@@ -593,6 +593,8 @@ test("production routing bootstraps only a verified empty session and serializes
     HOST: "127.0.0.1",
     PORT: "0",
     HERDR_GUI_CONNECTIONS_PATH: registryPath,
+    // The fake render socket models only the legacy hello, not endpoint shells.
+    ROAMGATE_NOTIFICATION_SOURCE: "status",
   };
   for (const key of [
     "HERDR_SOCKET_PATH",

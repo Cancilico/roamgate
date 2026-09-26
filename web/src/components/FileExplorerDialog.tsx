@@ -39,6 +39,12 @@ import {
 import { store, useStoreSelector } from "../store";
 import { copyTextFromUserGesture } from "../terminalClipboard";
 import { useConnectionClient } from "../useConnectionClient";
+import { setWorkspacePathDragData } from "../workspacePathDrag";
+import {
+  revealInFileManager,
+  revealMenuLabel,
+  useCanRevealInFileManager,
+} from "../fileManager";
 import type {
   FileExplorerEntry,
   FileExplorerList,
@@ -182,7 +188,7 @@ type FileExplorerEntryMenuState = {
 
 // Keep ENTRY_MENU_ITEM_COUNT in sync with the items rendered in
 // FileExplorerEntryMenu; the height estimate drives clamping and flip placement.
-const ENTRY_MENU_ITEM_COUNT = 3;
+const ENTRY_MENU_ITEM_COUNT = 4;
 const ENTRY_MENU_WIDTH = 220;
 const ENTRY_MENU_HEIGHT = ENTRY_MENU_ITEM_COUNT * 34 + 8;
 
@@ -191,12 +197,14 @@ function FileExplorerEntryMenu({
   onClose,
   onDownload,
   onCopy,
+  onReveal,
   onDelete,
 }: {
   state: FileExplorerEntryMenuState | null;
   onClose: () => void;
   onDownload: (entry: FileExplorerEntry) => void;
   onCopy: (entry: FileExplorerEntry) => void;
+  onReveal?: (entry: FileExplorerEntry) => void;
   onDelete?: (entry: FileExplorerEntry) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -266,6 +274,14 @@ function FileExplorerEntryMenu({
       label: "Copy absolute path",
       action: () => onCopy(entry),
     },
+    ...(onReveal
+      ? [
+          {
+            label: revealMenuLabel(isDirectory),
+            action: () => onReveal(entry),
+          },
+        ]
+      : []),
     ...(onDelete
       ? [
           {
@@ -343,6 +359,7 @@ function FileExplorerContent({
 }) {
   const workspaces = useStoreSelector((state) => state.workspaces);
   const connectionClient = useConnectionClient();
+  const canReveal = useCanRevealInFileManager();
   const focusedWorkspace = workspaces.find((w) => w.focused);
   const workspace = workspaceId
     ? workspaces.find((w) => w.workspace_id === workspaceId)
@@ -393,6 +410,7 @@ function FileExplorerContent({
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressTriggered = useRef(false);
+  const entryPointerType = useRef("");
   const previewRequestKeyRef = useRef<string | null>(null);
   const previewRequestSequenceRef = useRef(0);
   const navigationRequestRef = previewRequestRef ?? previewRequestSequenceRef;
@@ -959,9 +977,13 @@ function FileExplorerContent({
     }
   };
 
-  const copyEntryPath = async (entry: FileExplorerEntry) => {
+  const entryAbsolutePath = (entry: FileExplorerEntry) => {
     const root = rootInfo?.root || initialWorkspacePath(workspace);
-    const value = root ? absolutePath(root, entry) : entry.path;
+    return root ? absolutePath(root, entry) : entry.path;
+  };
+
+  const copyEntryPath = async (entry: FileExplorerEntry) => {
+    const value = entryAbsolutePath(entry);
     try {
       await copyTextFromUserGesture(value);
       if (!connectionClient.isCurrent()) return;
@@ -1252,6 +1274,7 @@ function FileExplorerContent({
     event: ReactPointerEvent<HTMLElement>,
     entry: FileExplorerEntry,
   ) => {
+    entryPointerType.current = event.pointerType;
     if (event.pointerType === "mouse") return;
     longPressTriggered.current = false;
     longPressStart.current = { x: event.clientX, y: event.clientY };
@@ -1276,6 +1299,18 @@ function FileExplorerContent({
   const handleEntryPointerEnd = () => {
     clearLongPressTimer();
     longPressStart.current = null;
+  };
+
+  const handleEntryDragStart = (
+    event: DragEvent<HTMLElement>,
+    entry: FileExplorerEntry,
+  ) => {
+    // Touch long-press opens the entry menu, so only mouse drags carry paths.
+    if (entryPointerType.current !== "mouse") {
+      event.preventDefault();
+      return;
+    }
+    setWorkspacePathDragData(event.dataTransfer, entryAbsolutePath(entry));
   };
 
   const activateEntry = (entry: FileExplorerEntry) => {
@@ -1403,6 +1438,8 @@ function FileExplorerContent({
           onKeyDown={(event) =>
             handleEntryKeyDown(event, entry, isDirectory, isExpanded)
           }
+          draggable
+          onDragStart={(e) => handleEntryDragStart(e, entry)}
           onDragOver={(e) => handleDirectoryDragOver(e, uploadDirectory)}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
@@ -1772,6 +1809,16 @@ function FileExplorerContent({
         onCopy={(entry) => {
           void copyEntryPath(entry);
         }}
+        onReveal={
+          canReveal && workspace?.workspace_id
+            ? (entry) =>
+                void revealInFileManager(
+                  connectionClient,
+                  workspace.workspace_id,
+                  entry.path,
+                )
+            : undefined
+        }
         onDelete={filesystem ? undefined : setPendingDeleteEntry}
       />
       <ConfirmDialog

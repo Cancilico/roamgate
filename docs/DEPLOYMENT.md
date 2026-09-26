@@ -272,6 +272,7 @@ explicit connection registry paths remain authoritative, including empty values.
 | `--session <name>` | `HERDR_SESSION` | Default session |
 | `--public-dir <path>` | `PUBLIC_DIR` | Embedded assets |
 | `--log-level <level>` | `ROAMGATE_LOG_LEVEL` | `info` |
+| `--notification-source <herdr\|status>` | `ROAMGATE_NOTIFICATION_SOURCE` | `herdr`; see [Web Push](#web-push-notifications) |
 | `--open` | `OPEN_BROWSER=1` | Disabled |
 
 | Additional environment variable | Purpose |
@@ -280,6 +281,7 @@ explicit connection registry paths remain authoritative, including empty values.
 | `ROAMGATE_DISABLE_UPDATE_CHECK=1` | Disable update checks |
 | `ROAMGATE_RESTART_SUPERVISOR=0\|1` | Override external supervisor detection |
 | `ROAMGATE_DISABLE_ENDPOINT=1` | Legacy terminal fallback; see compatibility |
+| `ROAMGATE_ALLOW_FILE_REVEAL=1` | Opt into [host file reveal](#host-file-reveal); disabled by default |
 
 Update mirrors need platform archives, `.sha256` files, and
 `roamgate-<platform>.update.json` with `name: "roamgate"`. Missing/legacy manifests
@@ -293,6 +295,21 @@ roamgate --host 0.0.0.0 --port 8787     # generated token
 
 For a fixed password, prefer `ROAMGATE_PASSWORD` over process-visible
 `--password`. Read [Security](../SECURITY.md) before non-loopback use.
+
+### Host file reveal
+
+Desktop file reveal is **off by default**. To enable it, set
+`ROAMGATE_ALLOW_FILE_REVEAL=1` in the host process environment (or the service
+environment file and restart the service). Only local Herdr profiles and
+loopback TCP peers are eligible; SSH profiles and non-loopback peers are refused.
+The menus open the **Roamgate host's** file manager, which requires a usable
+desktop session. Foreground focus, especially on Windows, is best effort.
+
+**Opt-in also allows loopback-forwarded/tunnel clients to open windows on the
+host.** A loopback peer or browser URL cannot prove the browser runs on that
+machine. Enable only when that is acceptable for every client reaching the
+loopback listener, including reverse proxies and SSH forwards. The browser's
+platform is not used to name the host desktop.
 
 ### Native HTTPS
 
@@ -353,9 +370,15 @@ Delivery needs outbound HTTPS to Apple (`*.push.apple.com`), Google
 (`*.notify.windows.com`); other providers are rejected. No public inbound endpoint
 is needed. Devices must reach their provider and Roamgate when opening an alert.
 
-The bridge and relevant Herdr runtimes must stay connected. It observes
-`working -> blocked` and `working -> done/idle` without open browsers; startup
-snapshots are silent. Delivery is best-effort: OS/Focus settings, outages, expired
+The bridge and relevant Herdr runtimes must stay connected; alerts arrive without
+open browsers. The default `herdr` notification source relays Herdr's own
+notifications (Herdr 0.9+), so Roamgate alerts match Herdr's toasts, including
+`[ui.notifications] external_agents` suppression and alerts sent with
+`herdr notification show`. Roamgate keeps one passive client-shell connection per
+runtime for this; Herdr counts it as a connected client for `notification show`,
+but it never takes focus or tab geometry. `status` (or older Herdr servers) instead
+observes `working -> blocked` and `working -> done/idle`; startup snapshots are
+silent. Delivery is best-effort: OS/Focus settings, outages, expired
 subscriptions, or stopped runtimes can prevent it. Messages expire after five
 minutes, with no durable replay; HTTP 404/410 removes expired subscriptions.
 

@@ -32,10 +32,9 @@ import {
   type MobileTerminalSideShortcuts,
 } from "../mobileTerminalShortcuts";
 import { shallowEqual, store, useStoreSelector } from "../store";
-import {
-  type CustomTerminalTheme,
-  resolveTerminalThemeDefinition,
-  type TerminalThemeSelection,
+import type {
+  CustomTerminalTheme,
+  TerminalThemeSelection,
 } from "../terminalThemes";
 import {
   connectionClientScopeKey,
@@ -71,6 +70,8 @@ export type ConfigurationProps = {
   theme: Theme;
   accentColor: AccentColor;
   uiScale: number;
+  terminalFontScale: number;
+  terminalFontName: string;
   mobileTerminalShortcuts: MobileTerminalShortcutRows;
   mobileTerminalSideShortcuts: MobileTerminalSideShortcuts;
   terminalThemeSelection: TerminalThemeSelection;
@@ -78,6 +79,8 @@ export type ConfigurationProps = {
   onThemeChange: (theme: Theme) => void;
   onAccentColorChange: (accentColor: AccentColor) => void;
   onUiScaleChange: (scale: number) => void;
+  onTerminalFontScaleChange: (scale: number) => void;
+  onTerminalFontNameChange: (name: string) => void;
   onMobileTerminalShortcutsChange: (rows: MobileTerminalShortcutRows) => void;
   onMobileTerminalSideShortcutsChange: (
     shortcuts: MobileTerminalSideShortcuts,
@@ -341,17 +344,17 @@ export function ConfigurationDialog({
                   <ALargeSmall size={15} />
                 </span>
                 <div className="config-item-copy">
-                  <strong>Text size</strong>
-                  <span>Scale the interface</span>
+                  <strong>Interface scale</strong>
+                  <span>Scale menus, panels, and dialogs</span>
                 </div>
                 <div
                   className="config-scale-control"
                   role="group"
-                  aria-label="Text size"
+                  aria-label="Interface scale"
                 >
                   <button
                     type="button"
-                    aria-label="Decrease text size"
+                    aria-label="Decrease interface scale"
                     disabled={uiScale <= UI_SCALE_MIN}
                     onClick={() =>
                       props.onUiScaleChange(
@@ -364,7 +367,7 @@ export function ConfigurationDialog({
                   <button
                     type="button"
                     className="config-scale-value"
-                    aria-label={`Reset text size, currently ${uiScale}%`}
+                    aria-label={`Reset interface scale, currently ${uiScale}%`}
                     disabled={uiScale === UI_SCALE_DEFAULT}
                     onClick={() => props.onUiScaleChange(UI_SCALE_DEFAULT)}
                   >
@@ -372,7 +375,7 @@ export function ConfigurationDialog({
                   </button>
                   <button
                     type="button"
-                    aria-label="Increase text size"
+                    aria-label="Increase interface scale"
                     disabled={uiScale >= UI_SCALE_MAX}
                     onClick={() =>
                       props.onUiScaleChange(
@@ -393,25 +396,8 @@ export function ConfigurationDialog({
                   <SquareTerminal size={15} />
                 </span>
                 <span className="config-item-copy">
-                  <strong>Terminal theme</strong>
-                  <span>
-                    Dark:{" "}
-                    {
-                      resolveTerminalThemeDefinition(
-                        "dark",
-                        props.terminalThemeSelection,
-                        props.customTerminalThemes,
-                      ).name
-                    }{" "}
-                    · Light:{" "}
-                    {
-                      resolveTerminalThemeDefinition(
-                        "light",
-                        props.terminalThemeSelection,
-                        props.customTerminalThemes,
-                      ).name
-                    }
-                  </span>
+                  <strong>Terminal</strong>
+                  <span>Customize how terminals look</span>
                 </span>
                 <ChevronRight size={15} />
               </button>
@@ -647,8 +633,12 @@ export function ConfigurationDialog({
             open
             selection={props.terminalThemeSelection}
             customThemes={props.customTerminalThemes}
+            fontName={props.terminalFontName}
+            fontScale={props.terminalFontScale}
             onSelectionChange={props.onTerminalThemeSelectionChange}
             onCustomThemesChange={props.onCustomTerminalThemesChange}
+            onFontNameChange={props.onTerminalFontNameChange}
+            onFontScaleChange={props.onTerminalFontScaleChange}
             onClose={() => setDetail(null)}
           />
         ) : null}

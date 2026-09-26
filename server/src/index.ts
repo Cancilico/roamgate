@@ -1,6 +1,7 @@
 import type { ServerWebSocket } from "bun";
 import { isHtmlPath } from "../../shared/filePreview";
 import { DOWNLOAD_TIMEOUT_MS } from "./workspace/file-constants";
+import { canRevealFiles } from "./workspace/file-manager";
 import { createWebPushService } from "./notifications/web-push";
 import { rmSync } from "node:fs";
 import packageJson from "../../package.json";
@@ -435,6 +436,7 @@ function runtimeFactoryForProfile(
         },
         clientLabel,
         markRpcError,
+        taskNotificationSource: config.taskNotificationSource,
         onTaskEvent: (event) => {
           const connections = connectionProfiles.list();
           webPush.notify(
@@ -803,6 +805,7 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     listWorkspaceFiles,
     resolveWorkspaceFiles,
     readWorkspaceFile,
+    revealWorkspaceFile,
     readGitDiffSummary,
     readGitDiffFile,
     runGitPull,
@@ -907,6 +910,15 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
       sendReply({ id, result }, "file-read");
     } catch (e) {
       sendError("file-read-error", e);
+    }
+    return;
+  }
+  if (method === "file.reveal") {
+    try {
+      const result = await revealWorkspaceFile(params ?? {}, ws.remoteAddress);
+      sendReply({ id, result }, "file-reveal");
+    } catch (e) {
+      sendError("file-reveal-error", e);
     }
     return;
   }
@@ -1395,7 +1407,10 @@ function main() {
                 capabilities: {
                   connection_id: true,
                   connection_scoped_http: true,
+                  file_reveal: canRevealFiles(ws.remoteAddress),
                   connection_runtime_generation: true,
+                  herdr_task_notifications:
+                    config.taskNotificationSource === "herdr",
                 },
               }),
               "hello",

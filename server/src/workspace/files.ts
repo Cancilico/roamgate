@@ -36,6 +36,7 @@ import { runGitFileAction, runGitRepoAction } from "./git-actions";
 import { collectIgnoredNames } from "./git-ignore";
 import { GIT_DIFF_TIMEOUT_MS } from "./file-constants";
 import { inlinePreviewMimeForPath } from "./preview";
+import { canRevealFiles, revealLocalPath } from "./file-manager";
 import {
   HTML_PREVIEW_MAX_BYTES,
   isHtmlPath,
@@ -52,12 +53,14 @@ export function createFileHandlers({
   runProcessWithCodeTimeout,
   shQuote,
   lastStepBaselines,
+  revealPath = revealLocalPath,
 }: {
   herdr: HerdrClient;
   sshHost: () => string | undefined;
   runProcessWithCodeTimeout: RunProcessWithCodeTimeout;
   shQuote: (value: string) => string;
   lastStepBaselines?: LastStepBaselineStore;
+  revealPath?: typeof revealLocalPath;
 }) {
   async function explorerRoot(
     workspaceId: string,
@@ -97,14 +100,17 @@ export function createFileHandlers({
     return { workspaceId, workspace, checkoutPath, path };
   }
 
-  async function downloadTarget(params: Record<string, unknown>) {
+  async function downloadTarget(
+    params: Record<string, unknown>,
+    method = "file.download",
+  ) {
     const workspaceId = String(params.workspace_id ?? "");
-    if (!workspaceId) throw new Error("file.download requires workspace_id");
+    if (!workspaceId) throw new Error(`${method} requires workspace_id`);
     const path =
       params.scope === "filesystem"
         ? sanitizeFilesystemPath(params.path)
         : sanitizeExplorerPath(params.path);
-    if (!path) throw new Error("file.download requires path");
+    if (!path) throw new Error(`${method} requires path`);
     const workspace = await getWorkspace(workspaceId);
     const checkoutPath = await explorerRoot(workspaceId, workspace);
     if (!checkoutPath) throw new Error("workspace has no directory path");
@@ -206,6 +212,42 @@ export function createFileHandlers({
       repo_name: workspace?.worktree?.repo_name ?? workspace?.label ?? "",
       checkout_path: checkoutPath,
     };
+  }
+
+  async function revealFile(
+    params: Record<string, unknown>,
+    clientAddress: string,
+  ) {
+    if (sshHost() || !canRevealFiles(clientAddress)) {
+      throw new Error(
+        "file.reveal requires host opt-in, a local profile and a loopback peer",
+      );
+    }
+    const scope = params.scope ?? "workspace";
+    if (scope !== "workspace" && scope !== "filesystem") {
+      throw new Error("invalid file.reveal scope");
+    }
+    if (params.source !== undefined && params.source !== "changes") {
+      throw new Error("invalid file.reveal source");
+    }
+    const changes = params.source === "changes";
+    if (changes && scope !== "workspace") {
+      throw new Error("Changes reveal requires a Git-root-relative path");
+    }
+    const workspaceId = String(params.workspace_id ?? "");
+    if (!workspaceId) throw new Error("file.reveal requires workspace_id");
+    if (typeof params.path !== "string" || !params.path) {
+      throw new Error("file.reveal requires path");
+    }
+    const workspace = await getWorkspace(workspaceId);
+    const root = changes
+      ? await gitRoot(workspaceId, workspace)
+      : await explorerRoot(workspaceId, workspace);
+    if (!root) throw new Error("workspace has no directory path");
+    return revealPath(root, params.path, {
+      scope,
+      nearestExistingAncestor: changes,
+    });
   }
 
   async function resolveFiles(params: Record<string, unknown>) {
@@ -503,6 +545,7 @@ export function createFileHandlers({
     listWorkspaceFiles: listFiles,
     resolveWorkspaceFiles: resolveFiles,
     readWorkspaceFile: readFile,
+    revealWorkspaceFile: revealFile,
     downloadWorkspaceFile: downloadFile,
     uploadWorkspaceFile: uploadFile,
     deleteWorkspaceFile: deleteFile,

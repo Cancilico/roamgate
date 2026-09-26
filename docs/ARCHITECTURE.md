@@ -139,6 +139,10 @@ requests and invalidates clipboard ownership.
 Local detection scans soft-wrapped text with cell coordinates. File detection
 also considers bounded, indented continuations because endpoint cell repaints
 lack soft-wrap metadata; inferred paths must resolve within the pane's workspace.
+File detection accepts POSIX paths plus Windows drive (`C:\`) and backslash
+paths; relative paths must resolve, and absolute paths link with `/` separators.
+Links detected from text check only that their row still shows the same text
+when clicked, so repaints elsewhere, such as TUI timers, do not disable them.
 Blank lines separate contexts. Local URL detection never guesses missing tails.
 
 Endpoint repaints carry an opaque `link_frame` identity, stable across identical,
@@ -292,6 +296,22 @@ view. Search filters loaded entries only.
 
 Absolute previews use `scope=filesystem` download URLs; relative Markdown links
 and images resolve beside their source. Upload/delete remain checkout-scoped.
+`file.reveal` opens the host file manager with a fixed per-platform argv
+(`explorer.exe`, `open`, `xdg-open`), never a shell. It is disabled unless the
+host opts in with `ROAMGATE_ALLOW_FILE_REVEAL=1`, and still refuses SSH profiles
+and non-loopback peers. The hello `file_reveal` capability reports host opt-in
+and peer eligibility; the UI also checks the selected profile. Loopback peers
+can be forwarded/tunneled remote browsers: neither TCP loopback nor the browser
+URL proves same-machine access. See [deployment](DEPLOYMENT.md#host-file-reveal).
+
+Reveal validates scope explicitly: workspace paths must be relative (including
+on Windows), with realpath/symlink confinement; only `scope: "filesystem"`
+permits absolute paths outside the checkout. Changes sends `source: "changes"`
+with a Git-root-relative path. The server resolves the workspace's Git root and
+uses actual existence, not Git status codes, falling back to the nearest existing
+ancestor inside that root. Ordinary explorer requests still fail on missing
+paths. Download behavior is unchanged. Windows foreground focus through `user32`
+(`bun:ffi`) is best effort, not guaranteed; the host needs a usable desktop.
 Explorer caches are separate from lazy UI code. Mermaid previews share a lazy
 renderer, strip wrappers/metadata only for detection, and retain original source.
 Images are inert elements; SVG is never inserted into the app DOM, and direct
@@ -344,10 +364,23 @@ metadata unknown without failing the list. There is no remote-to-local fallback.
 
 ## Task notifications
 
-Each runtime tracks agent transitions through per-pane subscriptions and periodic
-reconciliation, even without browsers. Initial state is silent; snapshots cannot
-overwrite newer events. Transitions emit once; disposal stops observation and
-queued sends recheck the owning lease.
+With the default `herdr` source, each runtime keeps one passive endpoint shell
+(`surface_active: false`) on the render socket, gated on endpoint generation 1.
+Herdr never promotes it to foreground or tab geometry controller, but delivers
+`SemanticNotification` (frozen tag 14) to it after applying Herdr's own policy.
+Only this shell decodes tag 14; per-pane terminal shells ignore it, so open views
+do not multiply alerts. Finished/needs-attention map to completed/blocked;
+pane-less custom alerts use their sound (`request` = blocked). The runtime relays
+each one to Web Push and to browsers as `roamgate.task_notification`; the bridge
+hello advertises `herdr_task_notifications` so pages disable their own status
+tracker. The shell reconnects with capped backoff. Servers without endpoint
+support (older Herdr, or endpoints disabled) fall back to the status tracker
+below, relayed the same way; a temporarily disconnected endpoint server does not.
+
+The `status` source tracks agent transitions through per-pane subscriptions and
+periodic reconciliation, even without browsers. Initial state is silent;
+snapshots cannot overwrite newer events. Transitions emit once; disposal stops
+observation and queued sends recheck the owning lease.
 
 Web Push persists private VAPID keys and device subscriptions. Authenticated
 same-origin HTTP manages enrollment/revocation; encrypted sends use a provider

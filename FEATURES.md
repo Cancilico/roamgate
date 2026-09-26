@@ -11,8 +11,9 @@ A Web/PWA client for a running [Herdr](https://herdr.dev) server.
 - Split right/down, resize, focus neighbors, zoom, or close panes.
 - Search workspaces, worktrees, files, tabs, panes, and agents in the command
   menu. Enter a relative/absolute path to open a file.
-- Desktop **Zen mode** hides app chrome. Hover the top edge to reveal controls
-  or use **Exit Zen**; the sidebar restores its previous state on exit.
+- Desktop **Zen mode** hides app chrome and runs the terminal flush to every
+  edge. Hover **Exit Zen** at the top to pull the topbar back, or click it to
+  leave; the sidebar restores its previous state on exit.
 
 Endpoint connections use **Local navigation** per browser/connection; legacy
 connections use **Shared navigation**. Reconnect preserves selections; reload
@@ -56,8 +57,9 @@ the first pane a jump can reach.
 - Paste images to upload them to the connected host and insert their paths.
   OSC 52 clipboard writes follow Herdr's foreground recipient, not proven source
   pane ownership; see [clipboard limits](docs/DEPLOYMENT.md#herdr-compatibility).
-- `Cmd/Ctrl`-click HTTP(S) links to open a browser tab; file/directory paths open
-  preview/workspace actions. Touch uses long-press, then **Open link** or
+- `Cmd/Ctrl`-click HTTP(S) links to open a browser tab; file/directory paths,
+  including Windows drive and backslash paths, open preview/workspace actions.
+  Touch uses long-press, then **Open link** or
   **File actions**. Nothing opens on hover or ordinary touch.
 
 Herdr 0.9.1 supports read-only wrapped-link resolution; OSC 8 keeps explicit
@@ -178,6 +180,15 @@ after fetch, and abort conflicts. They never push.
 - Upload by dragging onto a checkout directory; download files or workspace
   `.tar.gz` directories; copy paths or delete with confirmation via right-click
   or long-press. Upload/delete stay checkout-scoped. Operations work over SSH.
+- With [host file reveal enabled](docs/DEPLOYMENT.md#host-file-reveal), local
+  profiles over loopback offer **Reveal on host** and **Open folder on host**
+  in explorer and Changes menus. These open the Roamgate host's desktop, not
+  necessarily the browser's: files are selected in Finder/File Explorer;
+  Linux opens their containing folder. Changes uses the nearest existing
+  ancestor for deleted paths, including removed directories. Disabled by
+  default; SSH profiles and non-loopback peers are refused.
+- Drag a file or folder from the tree with the mouse to insert its absolute path
+  into the active terminal pane or the terminal composer.
 
 ## Review Annotations
 
@@ -246,11 +257,16 @@ separate for desktop/mobile. Jump from a diff to its file preview.
   native local profiles. [Connection setup](docs/DEPLOYMENT.md#multiple-and-remote-herdr-connections).
 - Browsers receive pushed events; inspect client counts or pause/resume clients.
   **Configuration > Behavior > Task notifications** independently enables
-  input-required/completed alerts. **Background push** works without an active
-  page; **Active page only** does not. Delivery is best-effort.
+  input-required/completed alerts, following Herdr's own notification decisions
+  by default. **Background push** works without an active page; **Active page
+  only** does not. Delivery is best-effort.
   [Web Push setup and revocation](docs/DEPLOYMENT.md#web-push-notifications).
-- Choose light/dark/system appearance, accents, built-in/custom terminal themes,
-  and UI text size (80%–150%). Preferences stay in this browser.
+- Choose light/dark/system appearance, accents, and interface scale (80%–150%).
+  **Configuration > Appearance > Terminal** groups the terminal font, font size
+  (70%–200%, scaling terminal text without resizing the rest of the interface),
+  and built-in/custom terminal themes. The font can be any family installed on
+  the viewing device; Chromium browsers can list installed fonts, and missing
+  glyphs fall back to the default terminal fonts. Preferences stay in this browser.
 - **Configuration > Connection > Terminal incremental transport** saves a shared
   per-connection setting on the server. It reduces Herdr-to-Roamgate traffic,
   briefly reconnecting displays without stopping tasks; older servers retain
