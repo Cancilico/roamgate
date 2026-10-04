@@ -78,6 +78,7 @@ import { CloseButton } from "./components/CloseButton";
 import { focusIfUnchanged } from "./components/dialogFocus";
 import { CONFIG_MENU_ID, ConfigMenu } from "./components/ConfigMenu";
 import { ConnectionSwitcher } from "./components/ConnectionSwitcher";
+import { CoordinationControl } from "./components/CoordinationControl";
 import {
   type ActiveDiffSelection,
   clearDiffViewerResourceCache,
@@ -3481,6 +3482,7 @@ export default function App() {
                 onOpenDiffViewer={openDiffViewer}
               />
             </Suspense>
+            <CoordinationControl />
             <ConfigMenu
               key={`${resourceUiKey}:config`}
               theme={theme}

@@ -4,6 +4,18 @@ A Web/PWA client for a running [Herdr](https://herdr.dev) server.
 [Install](./docs/DEPLOYMENT.md) · [Tutorial](./docs/TUTORIAL.md) ·
 [Keyboard shortcuts](#keyboard-shortcuts)
 
+## Needs-you Queue and Fleet Radar
+
+- The Needs you toolbar button shows an unresolved-request badge and opens the
+  optional shared Codex/Claude queue, with repository and session filters.
+- Requests include the exact question and handoff instructions. Reply & send
+  sends to an idle originating session; Mark done and Resume are separate actions.
+- Native dialogs link to their original session. Delivery status remains visible,
+  including uncertain outcomes that require checking before retrying.
+- Fleet radar shows both providers, branches, worktrees, observation times, and
+  shared-checkout warnings. Connection changes clear the previous host's data.
+- Enable the backend using [agent coordination configuration](docs/DEPLOYMENT.md#optional-agent-coordination).
+
 ## Workspace, Tab, and Pane Navigation
 
 - Create, rename, pin, switch, and close workspaces/tabs. Linked Git worktrees
