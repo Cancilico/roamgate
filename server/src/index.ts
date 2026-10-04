@@ -7,6 +7,7 @@ import packageJson from "../../package.json";
 import type { SshTunnelConfig } from "./bridge/ssh-tunnel";
 import { readNativeCodexClipboard } from "./bridge/native-codex-clipboard";
 import { roamgateEnv } from "./config/environment";
+import { createCoordinationHandler } from "./bridge/coordination";
 import {
   flushCoalescedMessages,
   sendWebSocketMessage,
@@ -801,6 +802,19 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     return null;
   }
   const connection = route.runtime;
+  if (method.startsWith("coordination.")) {
+    try {
+      const handle = createCoordinationHandler({
+        connectionId: route.connectionId,
+        herdrCall: (name, input) => connection.herdr.call(name, input),
+        isCurrent: requestIsCurrent,
+      });
+      sendReply({ id, result: await handle(method, params ?? {}) }, method);
+    } catch (error) {
+      sendError("coordination-error", error);
+    }
+    return;
+  }
   const {
     sshHost,
     herdr,

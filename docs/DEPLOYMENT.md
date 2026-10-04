@@ -3,6 +3,49 @@
 Configuration reference for Roamgate. For a guided workflow and private remote
 access, use the [tutorial](./TUTORIAL.md#networking).
 
+## Optional agent coordination
+
+The **Needs you** toolbar button opens a shared request queue and fleet radar.
+It uses an updated Workspace Voice backend; Roamgate does not require that
+service for terminal access. Configure each connection explicitly in
+`~/.config/roamgate/coordination.json`, or set `ROAMGATE_COORDINATION_CONFIG` to
+a private configuration file:
+
+```json
+{
+  "legacy-default": {
+    "url": "http://127.0.0.1:8790",
+    "host_id": "backend-host-id-from-snapshot",
+    "token_file": "/sandbox/.cancilico/mobile-codex-voice/coordination-bridge-token"
+  }
+}
+```
+
+The Workspace Voice dotfiles installer can create this mapping after the backend
+is running. For a named connection, run:
+
+```bash
+python3 ~/.local/share/workspace-voice/bin/agent-coordination.py configure-roamgate CONNECTION_ID
+```
+
+Use the actual connection ID from Roamgate's connection registry. An unmapped
+connection reports the feature as disabled; remote connections never fall back
+to the local backend. The URL must be loopback HTTP or HTTPS. Remote mappings
+require an explicitly reachable authenticated backend, such as an existing
+tunnel. This feature does not create SSH tunnels.
+
+`token_env` can replace `token_file` with the name of a bridge process environment
+variable. Credentials stay server-side. Token files must be private regular
+files; symlinks and group/world permissions are rejected. The configured backend
+host identity must match each response. Keep the existing Roamgate authentication
+boundary in place.
+
+Reply & send and Resume verify an idle originating session before dispatch.
+Native questions and approval dialogs use Open session. Mark done only records
+completion; it never grants an operation approval. Unknown delivery outcomes
+require checking the original session before retrying. Fleet conflicts are
+informational and suggest separate worktrees.
+
 ## Requirements
 
 - A running Herdr server, or [managed local setup](#managed-herdr-setup).
