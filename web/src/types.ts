@@ -203,6 +203,7 @@ export interface GitDiffSummary {
 }
 
 export interface GitDiffFile {
+  history?: import("../../shared/gitHistory").HistoryRange;
   workspace_id: string;
   root: string;
   path: string;

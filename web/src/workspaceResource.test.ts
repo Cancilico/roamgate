@@ -442,6 +442,7 @@ describe("workspace resource scope", () => {
     const other = resourceScopeForWorkspace("remote", workspace("w1"));
     expect(readInspectorPreferences(storage, other)).toMatchObject({
       expanded: false,
+      graphExpanded: true,
       expandedNavigationRatios: {},
     });
   });
@@ -454,6 +455,7 @@ describe("workspace resource scope", () => {
     expect(readInspectorPreferences(storage, scope)).toMatchObject({
       expanded: false,
       filesNavigationRatio: 0.4,
+      graphExpanded: true,
       expandedNavigationRatios: {},
     });
     for (const width of [1000, 1400, 1800]) {
@@ -498,6 +500,7 @@ describe("workspace resource scope", () => {
       view: "changes",
       dock: "bottom",
       expanded: false,
+      graphExpanded: true,
       expandedNavigationRatios: {},
       rightSize: 520,
       bottomSize: 410,
@@ -527,4 +530,33 @@ describe("workspace resource scope", () => {
       changesNavigationRatio: 0.4,
     });
   });
+});
+
+test("Git Graph expansion stays independent of Files and Changes", () => {
+  const storage = memoryStorage();
+  const scope = resourceScopeForWorkspace("local", workspace("w1", "/repo"));
+  const state: WorkspaceInspectorState = {
+    scope,
+    open: true,
+    view: "changes",
+    dock: "right",
+    size: 500,
+    expanded: false,
+  };
+  writeInspectorPreferences(storage, state);
+  writeInspectorPreferences(storage, {
+    ...state,
+    view: "git-graph",
+    expanded: true,
+  });
+  const preferences = readInspectorPreferences(storage, scope);
+  expect(preferences.expanded).toBe(false);
+  expect(preferences.graphExpanded).toBe(true);
+  expect(preferences.view).toBe("git-graph");
+  writeInspectorPreferences(storage, {
+    ...state,
+    view: "git-graph",
+    expanded: false,
+  });
+  expect(readInspectorPreferences(storage, scope).graphExpanded).toBe(false);
 });

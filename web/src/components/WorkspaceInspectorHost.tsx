@@ -64,6 +64,12 @@ const DiffContentView = lazyWithReload("diff-content-view", () =>
   })),
 );
 
+const GitGraphPanel = lazyWithReload("git-graph", () =>
+  import("./GitGraphPanel").then((module) => ({
+    default: module.GitGraphPanel,
+  })),
+);
+
 function changedCount(workspace?: Workspace) {
   const status = workspace?.worktree?.git_status;
   return status
@@ -253,6 +259,11 @@ export function WorkspaceInspectorHost({
   }, [onReady]);
   const filesTabRef = useRef<HTMLButtonElement | null>(null);
   const changesTabRef = useRef<HTMLButtonElement | null>(null);
+  const graphTabRef = useRef<HTMLButtonElement | null>(null);
+  const [graphMounted, setGraphMounted] = useState(state.view === "git-graph");
+  useEffect(() => {
+    if (state.view === "git-graph") setGraphMounted(true);
+  }, [state.view]);
   const historyTabRef = useRef<HTMLButtonElement | null>(null);
   const diffViewerRef = useRef<DiffViewerPanelHandle | null>(null);
   const splitId = useId();
@@ -267,6 +278,7 @@ export function WorkspaceInspectorHost({
     files: state.view === "files" && !!fileSelection.entry,
     changes: false,
     history: false,
+    "git-graph": false,
   }));
   const resourceKey = resourceOwnerKey(state.scope);
   const contentResourceKey = resourceStateKey(state.scope);
@@ -386,8 +398,8 @@ export function WorkspaceInspectorHost({
       return;
     }
     const views: InspectorView[] = historyAvailable
-      ? ["files", "changes", "history"]
-      : ["files", "changes"];
+      ? ["files", "changes", "git-graph", "history"]
+      : ["files", "changes", "git-graph"];
     const currentIndex = Math.max(0, views.indexOf(state.view));
     const nextView: InspectorView | undefined =
       event.key === "Home"
@@ -406,6 +418,7 @@ export function WorkspaceInspectorHost({
       files: filesTabRef,
       changes: changesTabRef,
       history: historyTabRef,
+      "git-graph": graphTabRef,
     };
     refs[nextView].current?.focus();
   };
@@ -488,6 +501,18 @@ export function WorkspaceInspectorHost({
             ) : null}
           </button>
           <button
+            ref={graphTabRef}
+            type="button"
+            role="tab"
+            aria-selected={state.view === "git-graph"}
+            tabIndex={state.view === "git-graph" ? 0 : -1}
+            className={state.view === "git-graph" ? "is-active" : ""}
+            onClick={() => onViewChange("git-graph")}
+            onKeyDown={handleTabKeyDown}
+          >
+            <GitFork size={14} /> Git Graph
+          </button>
+          <button
             ref={historyTabRef}
             type="button"
             role="tab"
@@ -505,7 +530,7 @@ export function WorkspaceInspectorHost({
             }}
             onKeyDown={handleTabKeyDown}
           >
-            <History size={14} /> History
+            <History size={14} /> Agent History
           </button>
         </div>
         <div className="workspace-inspector-actions">
@@ -782,6 +807,28 @@ export function WorkspaceInspectorHost({
                 </Suspense>
               ) : null}
             </div>
+          </div>
+          <div
+            className={`workspace-inspector-resource inspector-graph-resource ${state.view === "git-graph" ? "" : "is-hidden"}`}
+          >
+            {graphMounted ? (
+              <Suspense
+                fallback={
+                  <div className="workspace-inspector-unavailable">
+                    Loading Git Graph...
+                  </div>
+                }
+              >
+                <GitGraphPanel
+                  key={`${contentResourceKey}:${connectionClient.generation}`}
+                  workspaceId={workspace.workspace_id}
+                  resourceKey={contentResourceKey}
+                  client={connectionClient}
+                  compact={compact}
+                  visible={visible && state.open && state.view === "git-graph"}
+                />
+              </Suspense>
+            ) : null}
           </div>
           <div
             className={`workspace-inspector-resource inspector-history-resource ${

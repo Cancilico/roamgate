@@ -65,6 +65,7 @@ export function ContextMenu({
   onPinnedChange,
   onBrowseFiles,
   onReviewChanges,
+  onGitGraph,
   onClose,
 }: {
   state: ContextMenuState | null;
@@ -72,6 +73,7 @@ export function ContextMenu({
   onPinnedChange: (workspace: Workspace, pinned: boolean) => void;
   onBrowseFiles?: (workspace: Workspace) => void;
   onReviewChanges?: (workspace: Workspace) => void;
+  onGitGraph?: (workspace: Workspace) => void;
   onClose: () => void;
 }) {
   const workspaces = useStoreSelector((state) => state.workspaces);
@@ -269,6 +271,7 @@ export function ContextMenu({
   const creationSource = worktreeCreationSource(workspaces, w);
 
   const inspectItems: Item[] = [
+    { label: "Git Graph", action: () => onGitGraph?.(w) },
     {
       label: "Browse files",
       action: () => onBrowseFiles?.(w),

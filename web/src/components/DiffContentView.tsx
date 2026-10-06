@@ -138,11 +138,15 @@ function startImagePreviewRequest(
   client: ConnectionClient,
   isCurrent: () => boolean,
   onComplete: (key: string, state: ImagePreviewState) => void,
+  loader?: (file: GitDiffFile) => Promise<FilePreview>,
 ) {
-  void requestFilePreview(target.file.workspace_id, target.file.path, {
-    client,
-    refresh: true,
-  })
+  const request = loader
+    ? loader(target.file)
+    : requestFilePreview(target.file.workspace_id, target.file.path, {
+        client,
+        refresh: true,
+      });
+  void request
     .then((preview) => {
       if (!isCurrent()) return;
       onComplete(target.key, { preview, loading: false, error: null });
@@ -308,6 +312,8 @@ function imagePreviewKey(client: ConnectionClient, file: GitDiffFile) {
     "diff-image-preview",
     file.workspace_id,
     file.path,
+    file.history?.base,
+    file.history?.target,
   );
 }
 
@@ -624,15 +630,17 @@ const DiffFileSection = memo(function DiffFileSection({
               <span className="diff-file-section-meta">{metaNote}</span>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="diff-file-open"
-            onClick={() => onOpenFile?.(section.entry)}
-            disabled={!onOpenFile}
-          >
-            <FolderOpen size={14} />
-            <span>Open in Files</span>
-          </button>
+          {section.file?.history ? null : (
+            <button
+              type="button"
+              className="diff-file-open"
+              onClick={() => onOpenFile?.(section.entry)}
+              disabled={!onOpenFile}
+            >
+              <FolderOpen size={14} />
+              <span>Open in Files</span>
+            </button>
+          )}
         </header>
       )}
       {section.collapsed ? null : (
@@ -778,7 +786,9 @@ export function DiffContentView({
   onEditAnnotation,
   embedded = false,
   backAction,
+  requestImagePreview,
 }: {
+  requestImagePreview?: (file: GitDiffFile) => Promise<FilePreview>;
   selectionRevision?: number;
   entry: GitDiffEntry | null;
   file: GitDiffFile | null;
@@ -869,7 +879,10 @@ export function DiffContentView({
         const key = diffEntryKey(visibleEntry);
         const diffFile = filesByKey[key] ?? null;
         const imagePreview =
-          !!diffFile && isImageDiff(visibleEntry.path, diffFile.diff);
+          !!diffFile &&
+          (isImageDiff(visibleEntry.path, diffFile.diff) ||
+            (!!diffFile.history &&
+              imageMimeForPath(visibleEntry.path) !== null));
         const autoCollapse = diffAutoCollapseInfo(visibleEntry, diffFile);
         const defaultCollapsed = autoCollapse !== null;
         const active = key === activeEntryKey;
@@ -1164,9 +1177,15 @@ export function DiffContentView({
           connectionClient.isCurrent() &&
           imagePreviewRequestByKeyRef.current.get(target.key) === requestSeq,
         completeImagePreview,
+        requestImagePreview,
       );
     }
-  }, [completeImagePreview, connectionClient, imagePreviewTargets]);
+  }, [
+    completeImagePreview,
+    connectionClient,
+    imagePreviewTargets,
+    requestImagePreview,
+  ]);
 
   useEffect(() => {
     if (!activeEntryKey || !sectionRef.current) return;

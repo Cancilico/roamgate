@@ -1,3 +1,4 @@
+import { createGitHistory } from "./git-history";
 import { dirname } from "node:path";
 import {
   editorPath,
@@ -500,6 +501,20 @@ export function createFileHandlers({
     return { workspaceId, workspace, root };
   }
 
+  async function readGitHistory(
+    method: string,
+    params: Record<string, unknown>,
+  ) {
+    const { workspaceId, root } = await workspaceAndGitRoot(params, method);
+    return createGitHistory({
+      workspaceId,
+      root,
+      host: sshHost(),
+      shQuote,
+      runProcessWithCodeTimeout,
+    })(method, params);
+  }
+
   async function readGitDiffSummary(params: Record<string, unknown>) {
     const { workspaceId, workspace, root } = await workspaceAndGitRoot(params);
     return readDiffSummary({
@@ -570,6 +585,7 @@ export function createFileHandlers({
     downloadWorkspaceFile: downloadFile,
     uploadWorkspaceFile: uploadFile,
     deleteWorkspaceFile: deleteFile,
+    readGitHistory,
     readGitDiffSummary,
     readGitDiffFile,
     runGitPull,
