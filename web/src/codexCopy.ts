@@ -38,9 +38,13 @@ export function codexCopyConfirmed(terminal: Screen): boolean {
 }
 
 export function codexSelectionCopyVisible(terminal: Screen): boolean {
-  return recentScreenLines(terminal).some((line) =>
-    /\^c copy.*enter copy & follow.*esc clear$/i.test(line),
-  );
+  return recentScreenLines(terminal)
+    .slice(-4)
+    .some((line) =>
+      /^(?:New activity [\u00b7\u2022] )?\^c copy [\u00b7\u2022] enter copy & follow [\u00b7\u2022] esc clear$/i.test(
+        line,
+      ),
+    );
 }
 
 export function codexCopyCompleted(

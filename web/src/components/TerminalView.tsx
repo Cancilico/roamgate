@@ -1041,19 +1041,27 @@ export function TerminalView({
       (!shouldAvoidVirtualKeyboard() || inputActiveRef.current);
 
     let codexCopyTimer: number | null = null;
+    let codexSelectionReleaseTimer: number | null = null;
     let codexCopyIntent = 0;
     let codexCopyPending = false;
     const cancelCodexCopyWatch = () => {
       codexCopyIntent++;
       if (codexCopyTimer !== null) window.clearTimeout(codexCopyTimer);
+      if (codexSelectionReleaseTimer !== null)
+        window.clearTimeout(codexSelectionReleaseTimer);
       codexCopyTimer = null;
+      codexSelectionReleaseTimer = null;
       codexCopyPending = false;
     };
-    const watchCodexCopy = (terminalId: string) => {
+    const watchCodexCopy = (
+      terminalId: string,
+      copySelectionOnRelease = false,
+    ) => {
       cancelCodexCopyWatch();
       const intent = codexCopyIntent;
       const previousConfirmation = codexCopyConfirmation(term);
-      const selectionWasVisible = codexSelectionCopyVisible(term);
+      let selectionWasVisible = codexSelectionCopyVisible(term);
+      let selectionCopyRequested = false;
       const pickerWasVisible = codexCopyPickerVisible(term);
       const deadline = performance.now() + 3_000;
       const poll = () => {
@@ -1062,9 +1070,30 @@ export function TerminalView({
           intent !== codexCopyIntent ||
           terminalEffectDisposed ||
           !connectionClient.isCurrent() ||
-          desiredTerminalRef.current !== terminalId
+          desiredTerminalRef.current !== terminalId ||
+          !isActivePaneRef.current
         )
           return;
+        // Native Codex selection keeps the selected text until Ctrl+C. Wait
+        // for its selection footer so a release can never interrupt an app.
+        if (
+          copySelectionOnRelease &&
+          !selectionCopyRequested &&
+          acceptsInput() &&
+          codexSelectionCopyVisible(term)
+        ) {
+          selectionWasVisible = true;
+          selectionCopyRequested = true;
+          void sendBytes(
+            connectionClient,
+            new Uint8Array([3]),
+            terminalId,
+          ).catch((error) => {
+            if (intent !== codexCopyIntent) return;
+            cancelCodexCopyWatch();
+            setUploadError(`Copy failed: ${(error as Error).message}`);
+          });
+        }
         if (
           codexCopyCompleted(
             term,
@@ -2283,18 +2312,23 @@ export function TerminalView({
         isActivePaneRef.current
       ) {
         const terminalId = desiredTerminalRef.current;
-        // xterm sends the application's release after this capture listener.
-        // Start watching once that input has established clipboard ownership.
-        queueMicrotask(() => {
+        // xterm's document listener sends the release after this capture
+        // listener. Microtasks can run between listeners, so defer to the
+        // next task: the release must finish before starting the copy watch.
+        cancelCodexCopyWatch();
+        const intent = codexCopyIntent;
+        codexSelectionReleaseTimer = window.setTimeout(() => {
+          codexSelectionReleaseTimer = null;
           if (
+            intent === codexCopyIntent &&
             terminalId &&
             !terminalEffectDisposed &&
             connectionClient.isCurrent() &&
             desiredTerminalRef.current === terminalId
           ) {
-            watchCodexCopy(terminalId);
+            watchCodexCopy(terminalId, true);
           }
-        });
+        }, 0);
       }
       if (linkClick) {
         // xterm never saw the press; its Linkifier must not activate again.
@@ -2344,6 +2378,7 @@ export function TerminalView({
       // this deferred replay before a sibling terminal can start an app drag.
       // Synthetic selection replay must not cancel another pane's intent.
       if (!e.isTrusted) return;
+      cancelCodexCopyWatch();
       const target = e.target instanceof Element ? e.target : null;
       if (
         !target?.closest(
@@ -2362,6 +2397,7 @@ export function TerminalView({
       endpointPresentation.cancelSelection();
     };
     const onSelectionBlur = () => {
+      cancelCodexCopyWatch();
       nativeSelectionDrag = null;
       touchSelection.cancelPending();
       historySelection.finish();
