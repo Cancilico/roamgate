@@ -198,6 +198,7 @@ export function WorkspaceTree({
   onSelect,
   onBrowseFiles,
   onReviewChanges,
+  onGitGraph,
   onSelectAgent,
   onBrowseFilesForAgent,
   onReviewChangesForAgent,
@@ -207,6 +208,7 @@ export function WorkspaceTree({
   onSelect?: (workspace: Workspace) => void;
   onBrowseFiles?: (workspace: Workspace) => void;
   onReviewChanges?: (workspace: Workspace) => void;
+  onGitGraph?: (workspace: Workspace) => void;
   onSelectAgent?: (pane: Pane) => void;
   onBrowseFilesForAgent?: (pane: Pane) => void;
   onReviewChangesForAgent?: (pane: Pane) => void;
@@ -793,6 +795,7 @@ export function WorkspaceTree({
         onPinnedChange={updatePinnedWorkspace}
         onBrowseFiles={onBrowseFiles}
         onReviewChanges={onReviewChanges}
+        onGitGraph={onGitGraph}
         onClose={() => setMenu(null)}
       />
       <AgentContextMenu

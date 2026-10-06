@@ -35,6 +35,7 @@ import {
   CircleAlert,
   FileDiff,
   FolderTree,
+  GitFork,
   History,
   Info,
   LoaderCircle,
@@ -1647,7 +1648,9 @@ export default function App() {
               ? "Files"
               : view === "changes"
                 ? "Changes"
-                : "History"
+                : view === "git-graph"
+                  ? "Git Graph"
+                  : "Agent History"
           }`,
           detail: "The target workspace is no longer open.",
         });
@@ -1710,7 +1713,12 @@ export default function App() {
         view,
         dock,
         size,
-        expanded: sameOwner ? current.expanded : preferences.expanded,
+        expanded:
+          view === "git-graph"
+            ? preferences.graphExpanded
+            : sameOwner && current.view !== "git-graph"
+              ? current.expanded
+              : preferences.expanded,
         returnTabId,
         originPaneId: options.originPaneId,
         initialDirectory: options.initialDirectory,
@@ -3290,10 +3298,20 @@ export default function App() {
     if (view === "history" && !paneHasAgentHistory(inspectorHistoryPane)) {
       return;
     }
+    const preferences = readInspectorPreferences(
+      roamgateLocalStorage,
+      current.scope,
+    );
     const next = {
       ...current,
       open: true,
       view,
+      expanded:
+        view === "git-graph"
+          ? preferences.graphExpanded
+          : current.view === "git-graph"
+            ? preferences.expanded
+            : current.expanded,
       originPaneId:
         view === "history"
           ? inspectorHistoryPane?.pane_id
@@ -3480,6 +3498,9 @@ export default function App() {
                 onOpenFileExplorer={openFileExplorer}
                 onOpenFile={openFileExplorerFile}
                 onOpenDiffViewer={openDiffViewer}
+                onOpenGitGraph={(workspaceId) =>
+                  openInspector("git-graph", workspaceId)
+                }
               />
             </Suspense>
             <CoordinationControl />
@@ -3560,6 +3581,17 @@ export default function App() {
         >
           <FileDiff size={16} />
           <span className="mobile-nav-label">Changes</span>
+        </button>
+        <button
+          type="button"
+          className={mobileView === "git-graph" ? "active" : ""}
+          title="Git Graph"
+          aria-label="Show Git Graph"
+          tabIndex={mobileControlsCollapsed ? -1 : 0}
+          onClick={() => openInspector("git-graph")}
+        >
+          <GitFork size={16} />
+          <span className="mobile-nav-label">Git Graph</span>
         </button>
         <button
           type="button"
@@ -3826,6 +3858,9 @@ export default function App() {
               }
               onBrowseFiles={(workspace) =>
                 openFileExplorer(workspace.workspace_id)
+              }
+              onGitGraph={(workspace) =>
+                openInspector("git-graph", workspace.workspace_id)
               }
               onReviewChanges={(workspace) =>
                 openDiffViewer(workspace.workspace_id)

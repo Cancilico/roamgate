@@ -438,3 +438,24 @@ are exclusive and validated; downstream events cannot inject reserved bridge
 fields. NDJSON lines/acknowledgements are bounded; malformed terminal frames are
 dropped. Observable HTTP traversal is rejected, but Bun may normalize dot segments
 before routing; legacy aliases prevent distinguishing every such normalization.
+
+## Read-only Git History
+
+The `git.history.*` bridge methods resolve the selected workspace's Git root through
+its connection runtime, using the same local/SSH process helpers as Changes.
+`refs` returns commit-resolving refs, detached HEAD, and shallow-clone status. `page`
+uses immutable tip IDs and a topological offset, returning 200 rows and the next
+offset. New refs do not alter an existing snapshot; Refresh resolves new tips.
+`search` scans that snapshot for literal message/author/hash matches and returns
+commit positions; `locate` finds a commit's topological offset. Neither changes refs
+nor fetches remotes. `details` returns the stored commit parents, including shallow
+boundaries. `diff_summary`, `diff_file`, and `image` require full object IDs, use
+literal repository-relative paths, and apply existing deadlines and preview limits.
+Root diffs use the computed empty-tree ID without writing an object. Merge diffs
+select one parent; arbitrary comparisons compare two trees directly.
+
+Git Graph caches and request lifetimes belong to the connection/checkout resource.
+The React/SVG graph virtualizes rows while retaining lane continuity across pages.
+Historical patches reuse the browser diff renderer with an immutable revision
+context and a separate image loader. Historical previews never call the working-tree
+file reader, and working-tree actions and annotations are not connected to this view.

@@ -232,10 +232,12 @@ export function CommandCombobox({
   onOpenFileExplorer,
   onOpenFile,
   onOpenDiffViewer,
+  onOpenGitGraph,
 }: {
   onOpenFileExplorer?: (workspaceId?: string) => void;
   onOpenFile?: (workspaceId: string, entry: FileExplorerEntry) => void;
   onOpenDiffViewer?: (workspaceId?: string) => void;
+  onOpenGitGraph?: (workspaceId?: string) => void;
 }) {
   useShortcutPreferences();
   const s = useStoreSelector(
@@ -472,6 +474,13 @@ export function CommandCombobox({
         "browse repository",
       ],
       run: () => onOpenFileExplorer?.(focusedWorkspace.workspace_id),
+    });
+    currentActions.push({
+      key: "current-git-graph",
+      icon: <GitBranch size={15} />,
+      title: "Open Git Graph",
+      keywords: ["git history", "commits", "branches", "compare commits"],
+      run: () => onOpenGitGraph?.(focusedWorkspace.workspace_id),
     });
     currentActions.push({
       key: "current-diff-viewer",

@@ -348,3 +348,20 @@
     display: none;
   }
 }
+
+.workspace-inspector-resource.inspector-graph-resource {
+  display: flex;
+  padding: 0;
+}
+.workspace-inspector-resource.inspector-graph-resource.is-hidden {
+  display: none;
+}
+.inspector-graph-resource > .git-graph {
+  width: 100%;
+}
+.workspace-inspector-tabs {
+  overflow-x: auto;
+}
+.workspace-inspector-tabs button {
+  white-space: nowrap;
+}

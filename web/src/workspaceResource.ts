@@ -4,7 +4,7 @@ import { matchesShortcut, type ShortcutBindings } from "./shortcutBindings";
 import type { Workspace } from "./types";
 import { connectionStorageKey } from "./connectionStorage";
 
-export type InspectorView = "files" | "changes" | "history";
+export type InspectorView = "files" | "changes" | "history" | "git-graph";
 export type WorkspaceSurface = "terminal" | "annotations" | InspectorView;
 export const WORKSPACE_INSPECTOR_REQUEST_EVENT =
   "roamgate:workspace-inspector-request";
@@ -109,6 +109,7 @@ export interface InspectorPreferences {
   view: InspectorView;
   dock: InspectorDock;
   expanded: boolean;
+  graphExpanded: boolean;
   expandedNavigationRatios: Partial<Record<InspectorSplitView, number>>;
   rightSize: number;
   bottomSize: number;
@@ -275,6 +276,7 @@ export function readInspectorPreferences(
     view: "files",
     dock: "right",
     expanded: false,
+    graphExpanded: true,
     expandedNavigationRatios: {},
     rightSize: finiteSize(defaults.rightSize, DEFAULT_RIGHT_SIZE),
     bottomSize: finiteSize(defaults.bottomSize, DEFAULT_BOTTOM_SIZE),
@@ -287,11 +289,14 @@ export function readInspectorPreferences(
     const value = JSON.parse(raw) as Partial<InspectorPreferences>;
     return {
       view:
-        value.view === "changes" || value.view === "history"
+        value.view === "changes" ||
+        value.view === "history" ||
+        value.view === "git-graph"
           ? value.view
           : "files",
       dock: value.dock === "bottom" ? "bottom" : "right",
       expanded: value.expanded === true,
+      graphExpanded: value.graphExpanded !== false,
       expandedNavigationRatios: Object.fromEntries(
         (["files", "changes"] as const).flatMap((view) => {
           const ratio = value.expandedNavigationRatios?.[view];
@@ -321,7 +326,9 @@ export function writeInspectorPreferences(
     ...previous,
     view: state.view,
     dock: state.dock,
-    expanded: state.expanded,
+    expanded: state.view === "git-graph" ? previous.expanded : state.expanded,
+    graphExpanded:
+      state.view === "git-graph" ? state.expanded : previous.graphExpanded,
     rightSize: state.dock === "right" ? state.size : previous.rightSize,
     bottomSize: state.dock === "bottom" ? state.size : previous.bottomSize,
   };

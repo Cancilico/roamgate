@@ -828,6 +828,7 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     listWorkspaceFiles,
     resolveWorkspaceFiles,
     readWorkspaceFile,
+    readGitHistory,
     readGitDiffSummary,
     readGitDiffFile,
     runGitPull,
@@ -949,6 +950,17 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
       sendReply({ id, result }, "file-read");
     } catch (e) {
       sendError("file-read-error", e);
+    }
+    return;
+  }
+  if (method.startsWith("git.history.")) {
+    try {
+      sendReply(
+        { id, result: await readGitHistory(method, params ?? {}) },
+        method,
+      );
+    } catch (error) {
+      sendError("git-history-error", error);
     }
     return;
   }

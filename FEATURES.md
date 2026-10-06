@@ -85,7 +85,7 @@ metadata. See [link contracts](docs/ARCHITECTURE.md#links).
 
 ## Workspace Inspector
 
-Open **Files**, **Changes**, or **Agent History** from the Inspector button,
+Open **Files**, **Changes**, **Git Graph**, or **Agent History** from the Inspector button,
 keyboard shortcuts, or workspace/agent menus.
 
 - Dock right/bottom, resize, or expand without unmounting terminals. Narrow
@@ -102,6 +102,29 @@ Inspector and Annotations leave the sidebar unchanged. Preview offers **Edit** i
 the host file panel;
 [resource ownership](docs/ARCHITECTURE.md#workspace-resource-ownership) prevents
 cross-worktree state mixing.
+
+## Git Graph and Historical Diffs
+
+- **Inspector > Git Graph** opens expanded by default, independently of the saved
+  Files/Changes layout. Dock it beside the terminal or resize the history and diff panels.
+- Browse a colored branch/merge graph with refs, authors, dates, and commit hashes.
+  Mouse, touch, and keyboard scrolling load older commits in pages; only visible rows render.
+- Start with all local branches, known remote refs, tags, and detached HEAD, or filter
+  to one ref. **Refresh** rereads refs without fetching from remotes.
+- Search the repository history by message, author, or hash. Selecting a result
+  reveals its surrounding graph; **Back to latest** returns to the top.
+- Select a commit to see its message, parents, changed files, and syntax-highlighted
+  split/unified diffs. Merge commits offer a parent selector. **Compare from** and
+  **Compare to** compare two commit trees, with Swap and Clear controls.
+- Historical image previews read the selected Git revision, including deleted and
+  renamed images. **Before/After** selects the image revision. Large patches/images
+  show size limits; shallow clones explain unavailable earlier history.
+- Narrow layouts drill down from graph to commit to file diff, with Back preserving
+  the graph position. Selection, branch filter, and panel sizes are checkout-scoped.
+
+History browsing is read-only and supports local and SSH connections. New commits
+or moved refs do not shift an already loaded graph until Refresh. Historical diffs
+have no editing, working-tree actions, or working-tree annotations.
 
 ## Agent Awareness and Session Inspection
 
