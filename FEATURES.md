@@ -269,7 +269,9 @@ separate for desktop/mobile. Jump from a diff to its file preview.
 - Drag the `⋯` controls button to move the floating controls; release snaps
   them to the nearer side edge at that height, mirrored on the left. The
   position is kept per browser and stays clear of the header and tab strip.
-- The composer supports IME, dictation, multiline text, and images. **Insert**
+- The composer supports IME, dictation, multiline text, and images. For mobile
+  keyboard word suggestions and spell checking, write in the composer before
+  inserting or sending; availability depends on your keyboard. **Insert**
   does not execute; **Send** adds one Enter. Drafts are in-memory per
   connection/pane; closing their pane/tab/workspace asks before discarding.
 - Install as a PWA for an app window; a bundled Nerd Font supplies terminal
