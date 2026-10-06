@@ -102,3 +102,25 @@ test("repeated picker copies finish only after confirming the picker", () => {
     codexCopyCompleted(screen([confirmation]), confirmation, false, true),
   ).toBe(true);
 });
+
+test("native selection controls must be the real footer before automatic copy", () => {
+  const controls = "^c copy · enter copy & follow · esc clear";
+  expect(
+    codexSelectionCopyVisible(screen([`New activity · ${controls}`])),
+  ).toBe(true);
+  expect(
+    codexSelectionCopyVisible(screen([`console.log("${controls}")`])),
+  ).toBe(false);
+  expect(
+    codexSelectionCopyVisible(
+      screen([
+        controls,
+        "output 1",
+        "output 2",
+        "output 3",
+        "output 4",
+        "prompt",
+      ]),
+    ),
+  ).toBe(false);
+});
