@@ -50,7 +50,12 @@ import {
 import "@xterm/xterm/css/xterm.css";
 import { bridge, type ConnectionClient } from "../api";
 import { mobileTerminalShortcutExecution } from "../mobileTerminalShortcutAction";
-import { codexCopyConfirmed, codexCopyPickerVisible } from "../codexCopy";
+import {
+  codexCopyConfirmation,
+  codexCopyCompleted,
+  codexCopyPickerVisible,
+  codexSelectionCopyVisible,
+} from "../codexCopy";
 import {
   defaultMobileTerminalShortcutRows,
   defaultMobileTerminalSideShortcuts,
@@ -1047,6 +1052,9 @@ export function TerminalView({
     const watchCodexCopy = (terminalId: string) => {
       cancelCodexCopyWatch();
       const intent = codexCopyIntent;
+      const previousConfirmation = codexCopyConfirmation(term);
+      const selectionWasVisible = codexSelectionCopyVisible(term);
+      const pickerWasVisible = codexCopyPickerVisible(term);
       const deadline = performance.now() + 3_000;
       const poll = () => {
         codexCopyTimer = null;
@@ -1057,7 +1065,14 @@ export function TerminalView({
           desiredTerminalRef.current !== terminalId
         )
           return;
-        if (!codexCopyPickerVisible(term) && codexCopyConfirmed(term)) {
+        if (
+          codexCopyCompleted(
+            term,
+            previousConfirmation,
+            selectionWasVisible,
+            pickerWasVisible,
+          )
+        ) {
           codexCopyPending = true;
           void connectionClient
             .call("terminal.codex_copy", { terminal_id: terminalId }, 5_000)
@@ -1122,10 +1137,15 @@ export function TerminalView({
       if (!shouldSend) return;
       const terminalId = desiredTerminalRef.current;
       if (!terminalId) return;
-      if (
+      const confirmsCopyPicker =
         (unsuppressedData === "\r" || unsuppressedData === "\n") &&
-        codexCopyPickerVisible(term)
-      ) {
+        codexCopyPickerVisible(term);
+      const copiesNativeSelection =
+        (unsuppressedData === "\x03" ||
+          unsuppressedData === "\r" ||
+          unsuppressedData === "\n") &&
+        codexSelectionCopyVisible(term);
+      if (confirmsCopyPicker || copiesNativeSelection) {
         watchCodexCopy(terminalId);
       } else if (codexCopyTimer !== null || codexCopyPending) {
         cancelCodexCopyWatch();
@@ -1548,6 +1568,20 @@ export function TerminalView({
         return false;
       }
       if (e.type === "keydown" && shortcutMatches(e, "terminal.copy")) {
+        if (
+          !term.hasSelection() &&
+          !historySelection.active &&
+          codexSelectionCopyVisible(term)
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          const terminalId = desiredTerminalRef.current;
+          if (terminalId) {
+            watchCodexCopy(terminalId);
+            sendText("\x03");
+          }
+          return false;
+        }
         // Keep native copy on the terminal textarea so Safari's IME focus is
         // not interrupted by the clipboard fallback's temporary readonly input.
         const nativeCopy =
@@ -2026,6 +2060,8 @@ export function TerminalView({
       );
     };
     let reviewSelectionDrag = false;
+    let nativeSelectionDrag: { x: number; y: number; moved: boolean } | null =
+      null;
     // A modifier click on a hovered link owns the rest of its gesture.
     let linkClick = false;
     let lastPointerType = "";
@@ -2039,6 +2075,7 @@ export function TerminalView({
     };
     const onTerminalMouseDown = (e: MouseEvent) => {
       if (replayingSelection) return;
+      nativeSelectionDrag = null;
       linkClick = false;
       if (touchSelection.active && !isTouchMouse(e)) touchSelection.reset();
       if (
@@ -2078,8 +2115,12 @@ export function TerminalView({
           e,
           applePlatform,
         )
-      )
+      ) {
+        if (e.button === 0 && e.isTrusted && !isTouchMouse(e)) {
+          nativeSelectionDrag = { x: e.clientX, y: e.clientY, moved: false };
+        }
         return;
+      }
       selectionDragGuard.mouseDown(e.button);
       if (e.button !== 0) return;
       reviewSelectionDrag = true;
@@ -2121,6 +2162,14 @@ export function TerminalView({
       }
     };
     const onDeferredMouseMove = (e: MouseEvent) => {
+      if (nativeSelectionDrag && e.isTrusted && (e.buttons & 1) !== 0) {
+        if (
+          Math.abs(e.clientX - nativeSelectionDrag.x) > 4 ||
+          Math.abs(e.clientY - nativeSelectionDrag.y) > 4
+        ) {
+          nativeSelectionDrag.moved = true;
+        }
+      }
       if (linkClick) {
         // The opened tab can take focus and keep the release; a buttonless
         // move ends the gesture without disturbing hover.
@@ -2225,6 +2274,28 @@ export function TerminalView({
     };
     document.addEventListener("keydown", onTouchSelectionEscape, true);
     const onDocumentMouseUp = (e: MouseEvent) => {
+      const nativeDrag = nativeSelectionDrag;
+      nativeSelectionDrag = null;
+      if (
+        nativeDrag?.moved &&
+        e.isTrusted &&
+        e.button === 0 &&
+        isActivePaneRef.current
+      ) {
+        const terminalId = desiredTerminalRef.current;
+        // xterm sends the application's release after this capture listener.
+        // Start watching once that input has established clipboard ownership.
+        queueMicrotask(() => {
+          if (
+            terminalId &&
+            !terminalEffectDisposed &&
+            connectionClient.isCurrent() &&
+            desiredTerminalRef.current === terminalId
+          ) {
+            watchCodexCopy(terminalId);
+          }
+        });
+      }
       if (linkClick) {
         // xterm never saw the press; its Linkifier must not activate again.
         linkClick = false;
@@ -2291,6 +2362,7 @@ export function TerminalView({
       endpointPresentation.cancelSelection();
     };
     const onSelectionBlur = () => {
+      nativeSelectionDrag = null;
       touchSelection.cancelPending();
       historySelection.finish();
       if (endpointPresentation.selectionPending) {
