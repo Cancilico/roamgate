@@ -539,6 +539,7 @@ const webSocketCleanup = new WebSocketCleanupTracker<
   connectionManager.forEachCurrentRuntime((runtime) => {
     viewedTerminals.push(...runtime.terminalBridge.viewedTerminals(ws));
     runtime.terminalBridge.cleanupWs(ws);
+    void runtime.voice.cleanupOwner(ws);
   });
   const snapshot = {
     client: clientLabel(ws),
@@ -802,6 +803,26 @@ async function handleRpc(ws: ServerWebSocket<unknown>, raw: string) {
     return null;
   }
   const connection = route.runtime;
+  if (method.startsWith("voice.")) {
+    try {
+      let result: unknown;
+      if (method === "voice.capabilities")
+        result = await connection.voice.capabilities();
+      else if (method === "voice.start")
+        result = await connection.voice.start(
+          ws,
+          params ?? {},
+          () => requestIsCurrent() && clients.has(ws),
+        );
+      else if (method === "voice.stop")
+        result = await connection.voice.stop(ws, params ?? {});
+      else throw new Error("Unknown voice method");
+      sendReply({ id, result }, method);
+    } catch (error) {
+      sendError("voice-error", error);
+    }
+    return;
+  }
   if (method.startsWith("coordination.")) {
     try {
       const handle = createCoordinationHandler({
@@ -1374,6 +1395,10 @@ function main() {
           }
 
           if (url.pathname === "/ws") {
+            // Browsers send Fetch Metadata on WebSocket upgrades. A remote
+            // site must not be able to drive a loopback voice bridge.
+            if (req.headers.get("sec-fetch-site") === "cross-site")
+              return new Response("forbidden", { status: 403 });
             if (
               server.upgrade(req, { data: { sessionToken: sessionToken(req) } })
             )

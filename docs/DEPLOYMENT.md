@@ -3,6 +3,40 @@
 Configuration reference for Roamgate. For a guided workflow and private remote
 access, use the [tutorial](./TUTORIAL.md#networking).
 
+## Optional Codex voice
+
+Set `ROAMGATE_CODEX_VOICE=1` before starting Roamgate to expose the **Voice**
+toolbar control. It is disabled by default. Serve the page through HTTPS, or
+use localhost, for browser microphone access.
+
+The bridge connects to the existing Codex daemon socket at
+`$CODEX_HOME/app-server-control/app-server-control.sock`, with `CODEX_HOME`
+defaulting to `~/.codex`. Override the path with `ROAMGATE_CODEX_SOCKET`.
+Roamgate never starts, upgrades, or restarts the daemon. The daemon and its
+persisted session histories must be accessible to the Roamgate service user.
+The selected Codex thread must already be loaded there.
+
+This integration uses experimental Codex app-server APIs, initially verified
+against `0.162.0-alpha.2`. WebRTC calls explicitly select protocol v3; model,
+voice, permissions, and instructions retain their existing configuration.
+Unavailable voice accounts or incompatible versions produce a connection error.
+SSH-hosted agents and ephemeral threads are unsupported.
+
+Workspace Voice's separate web/Android app keeps its own Realtime call,
+authentication, confirmation workflows, and shared Herdr roster. Ending one
+interface's call does not stop the other service or interrupt coding work.
+Separate devices can use both interfaces; on one phone, end the current call
+before starting the other interface. Roamgate releases its microphone when the
+page is hidden and does not offer the Android app's background operation.
+
+An existing native Codex voice call must be ended in its original client before
+starting Roamgate voice on that thread. Ownership is checked using the persisted
+voice lifecycle. Unreadable, incomplete, or excessively large histories cause a
+refusal. Codex currently has no atomic start/stop ownership precondition, so
+avoid simultaneously starting native `/voice` and Roamgate voice on the same
+thread. Replacement notifications detach Roamgate, and cleanup verifies the
+current session ID before requesting stop.
+
 ## Optional agent coordination
 
 The **Needs you** toolbar button opens a shared request queue and fleet radar.
