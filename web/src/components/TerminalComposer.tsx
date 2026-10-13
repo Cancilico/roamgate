@@ -296,6 +296,8 @@ export function TerminalComposer({
           rows={1}
           placeholder="Compose input for the terminal…"
           autoComplete="off"
+          autoCorrect="on"
+          spellCheck={true}
           aria-label="Terminal input draft"
           onChange={(e) => updateText(e.currentTarget)}
           onSelect={(e) =>
