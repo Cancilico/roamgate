@@ -80,6 +80,7 @@ import { focusIfUnchanged } from "./components/dialogFocus";
 import { CONFIG_MENU_ID, ConfigMenu } from "./components/ConfigMenu";
 import { ConnectionSwitcher } from "./components/ConnectionSwitcher";
 import { CoordinationControl } from "./components/CoordinationControl";
+import { VoiceControl } from "./components/VoiceControl";
 import {
   type ActiveDiffSelection,
   clearDiffViewerResourceCache,
@@ -3504,6 +3505,10 @@ export default function App() {
               />
             </Suspense>
             <CoordinationControl />
+            <VoiceControl
+              paneId={activePaneId}
+              codex={activePane?.agent === "codex"}
+            />
             <ConfigMenu
               key={`${resourceUiKey}:config`}
               theme={theme}

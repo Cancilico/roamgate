@@ -1,0 +1,42 @@
+.voice-control {
+  position: fixed;
+  z-index: 100;
+  right: 16px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 28px #0005;
+}
+.voice-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.voice-control-row strong {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.voice-control-row button {
+  display: flex;
+  padding: 8px;
+}
+.voice-control p {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.voice-control-transcript {
+  max-height: 200px;
+  overflow-y: auto;
+}
+@media (max-width: 768px) {
+  .voice-control {
+    top: calc(64px + env(safe-area-inset-top));
+    bottom: auto;
+  }
+}

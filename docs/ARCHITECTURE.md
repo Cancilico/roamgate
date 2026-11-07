@@ -4,6 +4,34 @@ Roamgate's system contracts. See [Features](../FEATURES.md) for UI behavior,
 [Deployment](./DEPLOYMENT.md) for configuration, and [Security](../SECURITY.md)
 for the trust model.
 
+## Codex browser voice
+
+Each call uses a dedicated authenticated Roamgate WebSocket, scoped to its
+connection generation. This socket owns a Codex daemon observer connection and
+an in-process reservation keyed by daemon socket and thread. Closing the browser
+socket cancels pending negotiation and cleans up its call even if the main UI
+has changed its connection lease. Reservations do not restrict Workspace Voice
+or terminal input.
+
+Herdr remains the agent identity and lifecycle authority. The bridge resolves
+the pane's Codex thread ID, checks that the shared daemon has loaded it, and
+subscribes without configuration overrides. Microphone/speaker media and the
+`oai-events` channel use browser-to-provider WebRTC; Roamgate forwards only SDP,
+lifecycle, and bounded transcript updates. The server does not answer Codex
+approval requests. The existing terminal remains their user interface.
+
+Voice calls use unique session IDs. Persisted `realtime_item` lifecycle records
+protect existing calls and constrain cleanup to the owned ID. Replacement events
+detach the browser without stopping its replacement. History reads are streamed
+and bounded to 128 MiB and ten seconds. This is a compatibility workaround for
+the daemon's unimplemented timeline API, not an atomic ownership guarantee.
+Roamgate-created calls are serialized within one server process; independently
+started native calls remain subject to the daemon's concurrency limitations.
+
+Workspace Voice retains its independent Realtime conversation and Herdr tool
+control plane. Roamgate never forwards its transcript to that service, changes
+its confirmation policy, or acquires a cross-service control lock.
+
 ## System overview
 
 ```text

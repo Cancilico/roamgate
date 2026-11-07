@@ -20,6 +20,10 @@ import {
   isTerminalHelloProtocol,
 } from "../bridge/protocol-compat";
 import { roamgateEnv } from "../config/environment";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { createVoiceBridge } from "../voice/voice-bridge";
+import { serializeConnectionEnvelope } from "./protocol";
 import { createSettingsRpcHandler } from "../bridge/settings-rpc";
 import {
   readGuiSettings,
@@ -128,6 +132,28 @@ export function createLegacyConnectionRuntime(args: {
   const socketPath = config.socketPath;
   const clientSocketPath = config.clientSocketPath;
   const sshHost = () => config.sshHost;
+  const voice = createVoiceBridge({
+    enabled: roamgateEnv("CODEX_VOICE") === "1",
+    socketPath:
+      roamgateEnv("CODEX_SOCKET") ||
+      join(
+        process.env.CODEX_HOME || join(homedir(), ".codex"),
+        "app-server-control",
+        "app-server-control.sock",
+      ),
+    local: !config.sshHost,
+    herdrCall: (method, params) => herdr.call(method, params),
+    publish: (owner, data) =>
+      args.safeSend(
+        owner as ServerWebSocket<unknown>,
+        serializeConnectionEnvelope(
+          identity.id,
+          { event: "voice.updated", data },
+          args.connectionGeneration,
+        ),
+      ),
+    report: (message) => logger.info(message, { connection: identity.id }),
+  });
   const herdr = new HerdrClient(socketPath);
   const agentSessionFiles = createAgentSessionFileAccess({
     sshHost: config.sshHost,
@@ -497,6 +523,12 @@ export function createLegacyConnectionRuntime(args: {
   });
 
   const onHerdrEvent = (event: unknown) => {
+    const voiceEvent = event as { event?: string; data?: { pane_id?: string } };
+    if (
+      ["pane.exited", "pane.closed"].includes(voiceEvent.event || "") &&
+      voiceEvent.data?.pane_id
+    )
+      void voice.paneExited(voiceEvent.data.pane_id);
     taskEvents.handleHerdrEvent(event);
     lastStepTurns.handleHerdrEvent(event);
     agentStatusSubscriptions.handleHerdrEvent(event);
@@ -588,6 +620,7 @@ export function createLegacyConnectionRuntime(args: {
     const transportStop =
       transportStart?.catch(() => undefined) ?? Promise.resolve();
     stopTask = Promise.all([
+      voice.dispose(),
       autoSyncStop,
       subscriptionStop,
       agentStatusStop,
@@ -615,6 +648,7 @@ export function createLegacyConnectionRuntime(args: {
     worktreeRemovalCoordinator,
     worktreeRemovalRuntime,
     terminalBridge,
+    voice,
     agentSessions,
     taskNotificationSource,
     startTransport,

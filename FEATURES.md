@@ -4,6 +4,20 @@ A Web/PWA client for a running [Herdr](https://herdr.dev) server.
 [Install](./docs/DEPLOYMENT.md) · [Tutorial](./docs/TUTORIAL.md) ·
 [Keyboard shortcuts](#keyboard-shortcuts)
 
+## Codex Voice
+
+- Optional hands-free voice for the selected Codex agent, with mute, end,
+  playback recovery, and a bounded transcript.
+- Voice stays with its original agent when you switch panes. Leaving the page
+  or changing connections ends the call; reconnection requires Start.
+- Workspace Voice remains a separate app with its own call and shared Herdr
+  roster. Both interfaces can control the same agent from different devices.
+  End the current call before switching voice interfaces on one phone.
+- Requires HTTPS (or localhost), a supported local Codex daemon, and a persisted
+  thread already loaded by that daemon. Android Chrome and desktop Chrome/Edge
+  are the initial targets; browser voice runs in the foreground.
+- Enable using [Codex voice configuration](docs/DEPLOYMENT.md#optional-codex-voice).
+
 ## Needs-you Queue and Fleet Radar
 
 - The Needs you toolbar button shows an unresolved-request badge and opens the
