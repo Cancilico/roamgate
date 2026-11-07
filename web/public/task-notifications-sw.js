@@ -32,6 +32,10 @@ self.addEventListener("push", (event) => {
               ? message.body
               : "Open Roamgate to check your agents.",
           tag: typeof message?.tag === "string" ? message.tag : "roamgate-task",
+          // A same-tag replacement is silent by default; every push is a new
+          // alert, so ring and vibrate again (Android/Chrome) even when an
+          // older alert from the same pane is still in the tray.
+          renotify: true,
           data: {
             type: "roamgate:task-notification-activate",
             target: valid ? target : null,

@@ -399,6 +399,7 @@ describe("notification service worker clicks", () => {
     expect(showNotification).toHaveBeenCalledWith(message.title, {
       body: message.body,
       tag: message.tag,
+      renotify: true,
       data: { type: TASK_NOTIFICATION_ACTIVATE_EVENT, target },
     });
     listeners.push({
@@ -433,6 +434,7 @@ describe("notification service worker clicks", () => {
     expect(showNotification).toHaveBeenLastCalledWith("codex needs input", {
       body: "idle",
       tag: "roamgate-task",
+      renotify: true,
       data: { type: TASK_NOTIFICATION_ACTIVATE_EVENT, target: null },
     });
   });
